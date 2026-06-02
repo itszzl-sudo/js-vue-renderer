@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100vw; height: 100vh; overflow: hidden; background: #000; }
+    #app { width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="module">
+    import { createApp } from './src/vue-runtime.js';
+
+    async function main() {
+      console.log('=== Starting Simple Test ===');
+      
+      // 创建一个简单的Vue组件字符串
+      const simpleComponent = `
+        <template>
+          <div class="test-div" style="width: 200px; height: 200px; background-color: red;">
+            <span>Hello World</span>
+          </div>
+        </template>
+        <script>
+          export default { name: 'Test' }
+        </script>
+        <style>
+          .test-div {
+            border: 2px solid blue;
+            border-radius: 10px;
+            padding: 20px;
+          }
+        </style>
+      `;
+      
+      try {
+        const response = new Response(simpleComponent, { headers: { 'Content-Type': 'text/plain' } });
+        
+        // Mock fetch to return our simple component
+        const originalFetch = window.fetch;
+        window.fetch = async (url) => {
+          console.log('Fetching:', url);
+          if (url === './src/App.vue') {
+            return response;
+          }
+          return originalFetch(url);
+        };
+        
+        const app = await createApp('./src/App.vue');
+        console.log('App created successfully');
+        app.mount(document.getElementById('app'));
+        
+      } catch (err) {
+        console.error('Error:', err);
+        document.getElementById('app').innerHTML = '<pre>' + err.message + '</pre>';
+      }
+    }
+
+    main().catch(console.error);
+  </script>
+</body>
+</html>

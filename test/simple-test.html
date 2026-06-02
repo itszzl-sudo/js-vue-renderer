@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Simple Test</title>
+</head>
+<body>
+  <pre id="output">Loading...</pre>
+  
+  <script type="module">
+    const output = document.getElementById('output');
+    output.textContent = 'Starting...\n';
+    
+    try {
+      const mod = await import('../src/vue-runtime.js');
+      output.textContent += 'Module keys: ' + Object.keys(mod).join(', ') + '\n';
+      
+      if (!mod.LayoutEngine) {
+        output.textContent += 'ERROR: LayoutEngine is undefined!\n';
+        return;
+      }
+      
+      output.textContent += 'LayoutEngine type: ' + typeof mod.LayoutEngine + '\n';
+      output.textContent += 'LayoutEngine keys: ' + Object.keys(mod.LayoutEngine).join(', ') + '\n';
+      
+      if (typeof mod.LayoutEngine.parsePadding === 'function') {
+        output.textContent += 'parsePadding is a function\n';
+        const result = mod.LayoutEngine.parsePadding('10px 20px');
+        output.textContent += 'parsePadding("10px 20px") = ' + JSON.stringify(result) + '\n';
+      } else {
+        output.textContent += 'ERROR: parsePadding is not a function, type: ' + typeof mod.LayoutEngine.parsePadding + '\n';
+        output.textContent += 'parsePadding value: ' + JSON.stringify(mod.LayoutEngine.parsePadding) + '\n';
+      }
+      
+      // Also check calcFlexLayout
+      if (typeof mod.LayoutEngine.calcFlexLayout === 'function') {
+        output.textContent += 'calcFlexLayout is a function\n';
+      } else {
+        output.textContent += 'ERROR: calcFlexLayout is not a function, type: ' + typeof mod.LayoutEngine.calcFlexLayout + '\n';
+      }
+      
+      output.textContent += '\nDone!';
+      
+    } catch (err) {
+      output.textContent += 'ERROR: ' + err.message + '\n';
+      output.textContent += err.stack;
+    }
+  </script>
+</body>
+</html>

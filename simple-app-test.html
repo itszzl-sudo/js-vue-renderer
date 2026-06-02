@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple App Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100vw; height: 100vh; overflow: hidden; background: #000; }
+    #app { width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="module">
+    const log = (msg) => console.log(`[${new Date().toLocaleTimeString()}] ${msg}`);
+    
+    log('=== Starting Simple App Test ===');
+    
+    try {
+      log('Step 1: Importing createApp...');
+      const { createApp } = await import('./src/vue-runtime.js');
+      log('✅ createApp imported');
+      
+      log('Step 2: Creating app...');
+      const app = await createApp('./src/App.vue');
+      log('✅ App created');
+      
+      log('Step 3: Mounting app...');
+      await app.mount(document.getElementById('app'));
+      log('✅ App mounted');
+      
+    } catch (err) {
+      log(`❌ Error: ${err.message}`);
+      console.error(err);
+    }
+  </script>
+</body>
+</html>

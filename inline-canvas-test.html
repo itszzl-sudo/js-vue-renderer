@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inline Canvas Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100vw; height: 100vh; overflow: hidden; background: #1a1a2e; display: flex; align-items: center; justify-content: center; }
+    canvas { border: 2px solid #333; border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="600" height="400"></canvas>
+  
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Draw background
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, 600, 400);
+    
+    // Draw card (white rounded rectangle)
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.roundRect(50, 50, 500, 300, 20);
+    ctx.fill();
+    
+    // Draw three colored boxes
+    const boxes = [
+      { x: 80, y: 110, color: '#ff6b6b' },
+      { x: 200, y: 110, color: '#4ecdc4' },
+      { x: 320, y: 110, color: '#45b7d1' }
+    ];
+    
+    boxes.forEach(box => {
+      ctx.fillStyle = box.color;
+      ctx.beginPath();
+      ctx.roundRect(box.x, box.y, 100, 80, 10);
+      ctx.fill();
+    });
+    
+    console.log('✅ Canvas rendered successfully!');
+  </script>
+</body>
+</html>

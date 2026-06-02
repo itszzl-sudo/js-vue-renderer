@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple Module Test</title>
+  <style>
+    body { font-family: monospace; font-size: 14px; padding: 20px; background: #1a1a2e; color: white; }
+    .success { color: #4ade80; }
+    .error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <h1>Module Loading Test</h1>
+  <div id="result"></div>
+
+  <script type="module">
+    const resultDiv = document.getElementById('result');
+    
+    async function test() {
+      try {
+        resultDiv.innerHTML += '<p class="success">✅ Starting module import...</p>';
+        const module = await import('./src/vue-runtime.js');
+        resultDiv.innerHTML += '<p class="success">✅ Module imported successfully!</p>';
+        resultDiv.innerHTML += '<p>Available exports: ' + Object.keys(module).join(', ') + '</p>';
+        
+        if (module.createApp) {
+          resultDiv.innerHTML += '<p class="success">✅ createApp function is available</p>';
+        } else {
+          resultDiv.innerHTML += '<p class="error">❌ createApp function not found</p>';
+        }
+        
+      } catch (err) {
+        resultDiv.innerHTML += '<p class="error">❌ Error: ' + err.message + '</p>';
+        resultDiv.innerHTML += '<p class="error">Stack: ' + err.stack + '</p>';
+        console.error('Error:', err);
+      }
+    }
+    
+    test();
+  </script>
+</body>
+</html>

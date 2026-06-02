@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ES Module Test</title>
+  <style>
+    body { background: #1a1a2e; color: white; font-family: monospace; padding: 20px; }
+  </style>
+</head>
+<body>
+  <div id="result"></div>
+  
+  <script type="module">
+    const result = document.getElementById('result');
+    
+    try {
+      result.innerHTML = '<p>Importing test-module...</p>';
+      const module = await import('./test-module.js');
+      result.innerHTML += `<p>✅ Module imported: ${module.test()}</p>`;
+      
+      result.innerHTML += '<p>Importing color-parser...</p>';
+      const { ColorParser } = await import('./src/core/color-parser.js');
+      const cp = new ColorParser();
+      const color = cp.hexToRgba('#ff6b6b');
+      result.innerHTML += `<p>✅ ColorParser works: #ff6b6b -> [${color.map(c => c.toFixed(2)).join(', ')}]</p>`;
+      
+      result.innerHTML += '<p>Importing style-parser...</p>';
+      const { StyleParser } = await import('./src/core/style-parser.js');
+      const sp = new StyleParser();
+      const style = sp.parseStyle('color: red; font-size: 16px');
+      result.innerHTML += `<p>✅ StyleParser works: ${JSON.stringify(style)}</p>`;
+      
+      result.innerHTML += '<p>Importing vue-runtime...</p>';
+      const vueRuntime = await import('./src/vue-runtime.js');
+      result.innerHTML += `<p>✅ vue-runtime imported</p>`;
+      result.innerHTML += `<p>Exports: ${Object.keys(vueRuntime).join(', ')}</p>`;
+      
+    } catch (err) {
+      result.innerHTML += `<p style="color: red">❌ Error: ${err.message}</p>`;
+      result.innerHTML += `<pre style="color: red">${err.stack}</pre>`;
+    }
+  </script>
+</body>
+</html>

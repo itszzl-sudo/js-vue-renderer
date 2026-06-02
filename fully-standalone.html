@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fully Standalone Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100vw; height: 100vh; overflow: hidden; background: #1a1a2e; color: white; font-family: monospace; font-size: 12px; }
+    #app { width: 60vw; height: 100vh; float: left; background: #000; }
+    #debug { width: 40vw; height: 100vh; float: left; padding: 10px; overflow-y: auto; background: #0f0f1a; }
+    .log-info { color: #60a5fa; }
+    .log-success { color: #4ade80; }
+    .log-error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="debug"></div>
+
+  <script>
+    // ========== ColorParser ==========
+    class ColorParser {
+      hexToRgba(hex, alpha = 1) {
+        if (!hex) return [0.5, 0.5, 0.5, alpha];
+        
+        const rgbaMatch = hex.match(/rgba?\s*\(\s*([\d.]+)\s*%?\s*,\s*([\d.]+)\s*%?\s*,\s*([\d.]+)\s*%?\s*(?:,\s*([\d.]+))?\s*\)/);
+        if (rgbaMatch) {
+          let r, g, b;
+          if (hex.includes('%')) {
+            r = parseFloat(rgbaMatch[1]) / 100;
+            g = parseFloat(rgbaMatch[2]) / 100;
+            b = parseFloat(rgbaMatch[3]) / 100;
+          } else {
+            r = parseFloat(rgbaMatch[1]) / 255;
+            g = parseFloat(rgbaMatch[2]) / 255;
+            b = parseFloat(rgbaMatch[3]) / 255;
+          }
+          const a = rgbaMatch[4] !== undefined ? parseFloat(rgbaMatch[4]) : alpha;
+          return [r, g, b, a];
+        }
+        
+        if (hex.startsWith('#')) {
+          let r, g, b, a = alpha;
+          if (hex.length === 4) {
+            r = parseInt(hex[1] + hex[1], 16) / 255;
+            g = parseInt(hex[2] + hex[2], 16) / 255;
+            b = parseInt(hex[3] + hex[3], 16) / 255;
+          } else if (hex.length === 7) {
+            r = parseInt(hex.slice(1, 3), 16) / 255;
+            g = parseInt(hex.slice(3, 5), 16) / 255;
+            b = parseInt(hex.slice(5, 7), 16) / 255;
+          }
+          return [r, g, b, a];
+        }
+        
+        const colorNames = {
+          'red': [1, 0, 0, alpha],
+          'green': [0, 0.502, 0, alpha],
+          'blue': [0, 0, 1, alpha],
+          'white': [1, 1, 1, alpha],
+          'black': [0, 0, 0, alpha],
+          'transparent': [0, 0, 0, 0]
+        };
+        if (colorNames[hex.toLowerCase()]) {
+          return colorNames[hex.toLowerCase()];
+        }
+        
+        return [0.5, 0.5, 0.5, alpha];
+      }
+    }
+
+    // ========== StyleParser ==========
+    class StyleParser {
+      parseCSSText(cssText) {
+        const rules = new Map();
+        const ruleRegex = /([^{}]+)\s*\{([^{}]*)\}/g;
+        let match;
+        while ((match = ruleRegex.exec(cssText)) !== null) {
+          const selector = match[1].trim();
+          const properties = match[2].trim();
+          if (selector && properties) {
+            const style = this.parseStyle(properties);
+            rules.set(selector, style);
+          }
+        }
+        return rules;
+      }
+
+      parseStyle(styleText) {
+        const style = {};
+        const declarations = styleText.split(';');
+        for (const decl of declarations) {
+          const [name, value] = decl.split(':').map(s => s.trim());
+          if (name && value) {
+            style[name] = value;
+          }
+        }
+        return style;
+      }
+    }
+
+    // ========== NodeType ==========
+    const NodeType = {
+      ELEMENT: "element",
+      TEXT: "text"
+    };
+
+    // ========== CustomNode ==========
+    class CustomNode {
+      constructor(nodeType) {
+        this.nodeType = nodeType;
+        this.tag = "";
+        this.text = "";
+        this.attrs = {};
+        this.style = {};
+        this.componentId = "";
+        this.parent = null;
+        this.children = [];
+        this.layout = { x: 0, y: 0, width: 0, height: 0, paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0 };
+      }
+    }
+
+    // ========== TemplateParser ==========
+    class TemplateParser {
+      parse(template) {
+        if (!template) return null;
+        const root = new CustomNode(NodeType.ELEMENT);
+        root.tag = 'root';
+        this._parseElement(template, root);
+        return root;
+      }
+
+      _parseElement(html, parent) {
+        const tagRegex = /<([a-zA-Z][a-zA-Z0-9]*)\s*([^>]*)>([\s\S]*?)<\/\1>/g;
+        let regexResult;
+        while ((regexResult = tagRegex.exec(html)) !== null) {
+          const tagName = regexResult[1].toLowerCase();
+          const attrsStr = regexResult[2];
+          const innerContent = regexResult[3].trim();
+          const attrs = this._parseAttributes(attrsStr);
+          const node = new CustomNode(NodeType.ELEMENT);
+          node.tag = tagName;
+          node.attrs = attrs;
+          parent.children.push(node);
+          if (innerContent && innerContent.includes('<')) {
+            this._parseElement(innerContent, node);
+          }
+        }
+      }
+
+      _parseAttributes(attrsStr) {
+        const attrs = {};
+        if (!attrsStr) return attrs;
+        const attrRegex = /([a-zA-Z][a-zA-Z0-9_-]*)\s*=\s*["']([^"']+)["']/g;
+        let match;
+        while ((match = attrRegex.exec(attrsStr)) !== null) {
+          attrs[match[1]] = match[2];
+        }
+        return attrs;
+      }
+    }
+
+    // ========== StyleSystem ==========
+    class StyleSystem {
+      static globalStyles = new Map();
+      static scopedStyles = new Map();
+
+      static addStyleSheet(css, componentId) {
+        const parser = new StyleParser();
+        const rules = parser.parseCSSText(css);
+        if (componentId) {
+          if (!this.scopedStyles.has(componentId)) {
+            this.scopedStyles.set(componentId, new Map());
+          }
+          rules.forEach((style, selector) => {
+            this.scopedStyles.get(componentId).set(selector, style);
+          });
+        } else {
+          rules.forEach((style, selector) => {
+            this.globalStyles.set(selector, style);
+          });
+        }
+      }
+
+      static computeStyle(node) {
+        const finalStyle = {};
+        this.globalStyles.forEach((style, selector) => {
+          if (this._matchesSelector(node, selector)) {
+            Object.assign(finalStyle, style);
+          }
+        });
+        if (node.componentId && this.scopedStyles.has(node.componentId)) {
+          this.scopedStyles.get(node.componentId).forEach((style, selector) => {
+            if (this._matchesSelector(node, selector)) {
+              Object.assign(finalStyle, style);
+            }
+          });
+        }
+        Object.assign(finalStyle, node.style);
+        finalStyle.display = finalStyle.display || "block";
+        finalStyle.borderRadius = finalStyle.borderRadius || "0px";
+        finalStyle.opacity = finalStyle.opacity || "1";
+        return finalStyle;
+      }
+
+      static _matchesSelector(node, selector) {
+        if (!node || !selector) return false;
+        selector = selector.trim();
+        if (selector.startsWith('.')) {
+          const className = selector.slice(1);
+          return node.attrs.class && node.attrs.class.split(/\s+/).includes(className);
+        }
+        if (/^[a-z]+$/i.test(selector)) {
+          return selector.toLowerCase() === node.tag.toLowerCase();
+        }
+        return false;
+      }
+    }
+
+    // ========== LayoutEngine ==========
+    class LayoutEngine {
+      static layout(root, viewport) {
+        root.layout.x = 0;
+        root.layout.y = 0;
+        root.layout.width = viewport.width;
+        root.layout.height = viewport.height;
+        this.walk(root, viewport);
+      }
+
+      static walk(node, container) {
+        if (!node.children || node.children.length === 0) return;
+        const style = node.style || {};
+        const display = style.display || 'block';
+        if (display === 'flex') {
+          this.calcFlexLayout(node, container);
+        } else {
+          this.calcBlockLayout(node, container);
+        }
+      }
+
+      static calcFlexLayout(node, container) {
+        const style = node.style;
+        const flexDirection = style.flexDirection || 'row';
+        const gap = parseFloat(style.gap) || 0;
+        const isRow = flexDirection === 'row' || flexDirection === 'row-reverse';
+        const items = node.children.filter(c => c.nodeType === NodeType.ELEMENT);
+        const totalGap = gap * (items.length - 1);
+        let offset = 0;
+        
+        items.forEach((child, index) => {
+          const childStyle = child.style;
+          const width = parseFloat(childStyle.width) || 100;
+          const height = parseFloat(childStyle.height) || 100;
+          
+          if (isRow) {
+            child.layout.x = offset;
+            child.layout.y = (container.height - height) / 2;
+            child.layout.width = width;
+            child.layout.height = height;
+          }
+          offset += width + gap;
+        });
+      }
+
+      static calcBlockLayout(node, container) {
+        let y = 0;
+        const items = node.children.filter(c => c.nodeType === NodeType.ELEMENT);
+        items.forEach(child => {
+          const style = child.style;
+          const width = parseFloat(style.width) || container.width;
+          const height = parseFloat(style.height) || 50;
+          child.layout.x = 0;
+          child.layout.y = y;
+          child.layout.width = width;
+          child.layout.height = height;
+          y += height;
+        });
+      }
+    }
+
+    // ========== CPURenderer ==========
+    class CPURenderer {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.colorParser = new ColorParser();
+      }
+
+      render(nodeTree) {
+        if (!nodeTree) return;
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        const elemList = [];
+        const dfs = (n) => {
+          if (n.nodeType === NodeType.ELEMENT) elemList.push(n);
+          n.children.forEach(dfs);
+        };
+        dfs(nodeTree);
+        
+        elemList.forEach(node => {
+          this.drawRect(node);
+        });
+      }
+
+      drawRect(node) {
+        const { x, y, width, height } = node.layout;
+        const style = node.style;
+        if (width <= 0 || height <= 0) return;
+        
+        this.ctx.save();
+        const opacity = parseFloat(style.opacity) || 1;
+        this.ctx.globalAlpha = opacity;
+        
+        const bgColor = style.backgroundColor || '#ffffff';
+        const [r, g, b, a] = this.colorParser.hexToRgba(bgColor);
+        this.ctx.fillStyle = `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${a})`;
+        
+        const borderRadius = style.borderRadius ? this.parseBorderRadius(style.borderRadius) : { tl: 0, tr: 0, br: 0, bl: 0 };
+        this.drawRoundRect(x, y, width, height, borderRadius);
+        this.ctx.restore();
+      }
+
+      drawRoundRect(x, y, width, height, radius) {
+        const { tl, tr, br, bl } = radius;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + tl, y);
+        this.ctx.lineTo(x + width - tr, y);
+        this.ctx.quadraticCurveTo(x + width, y, x + width, y + tr);
+        this.ctx.lineTo(x + width, y + height - br);
+        this.ctx.quadraticCurveTo(x + width, y + height, x + width - br, y + height);
+        this.ctx.lineTo(x + bl, y + height);
+        this.ctx.quadraticCurveTo(x, y + height, x, y + height - bl);
+        this.ctx.lineTo(x, y + tl);
+        this.ctx.quadraticCurveTo(x, y, x + tl, y);
+        this.ctx.closePath();
+        this.ctx.fill();
+      }
+
+      parseBorderRadius(radiusStr) {
+        const vals = radiusStr.split(' ').map(v => parseFloat(v) || 0);
+        if (vals.length === 1) return { tl: vals[0], tr: vals[0], br: vals[0], bl: vals[0] };
+        if (vals.length === 2) return { tl: vals[0], tr: vals[1], br: vals[0], bl: vals[1] };
+        if (vals.length >= 4) return { tl: vals[0], tr: vals[1], br: vals[2], bl: vals[3] };
+        return { tl: 0, tr: 0, br: 0, bl: 0 };
+      }
+    }
+
+    // ========== Main Logic ==========
+    let debugLog = '';
+    
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const types = { info: 'log-info', success: 'log-success', error: 'log-error' };
+      debugLog += `<span class="${types[type]}">[${timestamp}]</span> ${message}\n`;
+      document.getElementById('debug').innerHTML = '<pre>' + debugLog + '</pre>';
+      console.log(message);
+    }
+
+    // Test component
+    const template = `<div class="container"><div class="box red"></div><div class="box blue"></div><div class="box green"></div></div>`;
+    const css = `.container { display: flex; flex-direction: row; background-color: #ffffff; padding: 20px; border-radius: 10px; width: 360px; height: 100px; } .box { width: 80px; height: 60px; border-radius: 5px; margin-right: 10px; } .red { background-color: #ff6b6b; } .blue { background-color: #4ecdc4; } .green { background-color: #45b7d1; }`;
+    const componentId = 'data-v-test123';
+
+    log('=== Starting Test ===', 'info');
+    
+    // Parse template
+    log('Step 1: Parsing template...', 'info');
+    const templateParser = new TemplateParser();
+    const rootNode = templateParser.parse(template);
+    log(`Root children: ${rootNode.children.length}`, 'info');
+    
+    // Add styles
+    log('Step 2: Adding styles...', 'info');
+    StyleSystem.addStyleSheet(css, componentId);
+    
+    // Inject scoped ID
+    log('Step 3: Injecting scoped ID...', 'info');
+    const injectScopedId = (node) => {
+      if (node.nodeType === NodeType.ELEMENT) {
+        node.componentId = componentId;
+      }
+      node.children.forEach(injectScopedId);
+    };
+    injectScopedId(rootNode);
+    
+    // Compute styles
+    log('Step 4: Computing styles...', 'info');
+    const calcTreeStyle = (node) => {
+      node.style = StyleSystem.computeStyle(node);
+      node.children.forEach(calcTreeStyle);
+    };
+    calcTreeStyle(rootNode);
+    
+    // Calculate layout
+    log('Step 5: Calculating layout...', 'info');
+    const viewport = { width: 500, height: 200 };
+    LayoutEngine.layout(rootNode, viewport);
+    
+    // Render
+    log('Step 6: Rendering...', 'info');
+    const canvas = document.createElement('canvas');
+    canvas.id = 'test-canvas';
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.display = 'block';
+    canvas.width = 500;
+    canvas.height = 200;
+    
+    const appContainer = document.getElementById('app');
+    appContainer.innerHTML = '';
+    appContainer.appendChild(canvas);
+    
+    const renderer = new CPURenderer(canvas);
+    renderer.render(rootNode);
+    
+    log('✅ Test complete!', 'success');
+  </script>
+</body>
+</html>

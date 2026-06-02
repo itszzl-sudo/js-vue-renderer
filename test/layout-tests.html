@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout Test Suite</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f0f1a; color: #ddd; font-family: 'Consolas', monospace; font-size: 12px; padding: 20px; }
+    h1 { color: #60a5fa; font-size: 18px; margin-bottom: 15px; }
+    #results { background: #1a1a2e; border-radius: 8px; padding: 15px; }
+    .test-pass { color: #4ade80; margin: 3px 0; padding: 2px 5px; }
+    .test-fail { color: #f87171; margin: 3px 0; padding: 2px 5px; background: rgba(248, 113, 113, 0.1); }
+    .suite-header { color: #fbbf24; font-weight: bold; margin: 10px 0 5px 0; font-size: 14px; }
+    .summary { margin-top: 20px; padding: 15px; border-radius: 8px; font-size: 14px; }
+    .summary-pass { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
+    .summary-fail { background: rgba(248, 113, 113, 0.2); color: #f87171; }
+    pre { background: #000; padding: 10px; border-radius: 4px; overflow-x: auto; margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Layout Test Suite</h1>
+  <div id="results">Loading tests...</div>
+
+  <script type="module">
+    const resultsDiv = document.getElementById('results');
+    let output = '';
+    
+    function log(msg, type = '') {
+      const div = document.createElement('div');
+      div.className = type ? `test-${type}` : '';
+      div.textContent = msg;
+      resultsDiv.appendChild(div);
+      console.log(msg);
+    }
+    
+    function logSuite(name) {
+      const div = document.createElement('div');
+      div.className = 'suite-header';
+      div.textContent = name;
+      resultsDiv.appendChild(div);
+      console.log(`\n📋 ${name}`);
+    }
+
+    // ==================== Test Framework ====================
+    let passed = 0;
+    let failed = 0;
+    const testResults = [];
+
+    function assertEqual(actual, expected, tolerance = 0) {
+      if (tolerance > 0) {
+        if (Math.abs(actual - expected) <= tolerance) return { passed: true };
+      }
+      if (actual === expected) return { passed: true };
+      return { passed: false, expected, actual };
+    }
+
+    function assertNear(actual, expected, tolerance = 1) {
+      if (Math.abs(actual - expected) <= tolerance) return { passed: true };
+      return { passed: false, expected, actual };
+    }
+
+    // ==================== Helper Functions ====================
+    function createNode(tag, style = {}, attrs = {}) {
+      return {
+        nodeType: 'element',
+        tag,
+        style: { ...style },
+        attrs: { ...attrs },
+        children: [],
+        layout: { x: 0, y: 0, width: 0, height: 0, paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0 },
+        parent: null
+      };
+    }
+
+    function createTextNode(text) {
+      return { nodeType: 'text', text, children: [], layout: {} };
+    }
+
+    function setChildren(parent, ...children) {
+      parent.children = children;
+      children.forEach(c => c.parent = parent);
+    }
+
+    // ==================== Run Tests ====================
+    async function runTests() {
+      log('Importing LayoutEngine...');
+      
+      const { LayoutEngine } = await import('../src/vue-runtime.js');
+      const calcFlexLayout = LayoutEngine.calcFlexLayout;
+      const calcBlockLayout = LayoutEngine.calcBlockLayout;
+      const parsePadding = LayoutEngine.parsePadding;
+      
+      log('✅ LayoutEngine imported\n', 'pass');
+
+      // ==================== Flex Layout Tests ====================
+      logSuite('Flex Layout - flex-direction');
+      
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'row' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        const r1 = assertNear(c1.layout.x, 0);
+        const r2 = assertNear(c1.layout.y, 0);
+        const r3 = assertNear(c1.layout.width, 100);
+        const r4 = assertNear(c1.layout.height, 50);
+        const r5 = assertNear(c2.layout.x, 100);
+        const r6 = assertNear(c2.layout.y, 0);
+        
+        if (r1.passed && r2.passed && r3.passed && r4.passed && r5.passed && r6.passed) {
+          log('flex-direction: row ✅', 'pass');
+        } else {
+          log(`flex-direction: row ❌ (x:${c1.layout.x}, x2:${c2.layout.x})`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'column' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.x, 0).passed && 
+            assertNear(c1.layout.y, 0).passed && 
+            assertNear(c2.layout.x, 0).passed && 
+            assertNear(c2.layout.y, 50).passed) {
+          log('flex-direction: column ✅', 'pass');
+        } else {
+          log(`flex-direction: column ❌ (y1:${c1.layout.y}, y2:${c2.layout.y})`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'row-reverse' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        // row-reverse: c1 at right (400), c2 at left of c1 (300)
+        if (assertNear(c1.layout.x, 400).passed && assertNear(c2.layout.x, 300).passed) {
+          log('flex-direction: row-reverse ✅', 'pass');
+        } else {
+          log(`flex-direction: row-reverse ❌ (x1:${c1.layout.x}, x2:${c2.layout.x})`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'column-reverse' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        // column-reverse: c1 at bottom (150), c2 above (100)
+        if (assertNear(c1.layout.y, 150).passed && assertNear(c2.layout.y, 100).passed) {
+          log('flex-direction: column-reverse ✅', 'pass');
+        } else {
+          log(`flex-direction: column-reverse ❌ (y1:${c1.layout.y}, y2:${c2.layout.y})`, 'fail');
+        }
+      })();
+
+      // ==================== justify-content Tests ====================
+      logSuite('Flex Layout - justify-content');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', justifyContent: 'center' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        // Two 100px items = 200px, centered: start at (500-200)/2 = 150
+        if (assertNear(c1.layout.x, 150).passed && assertNear(c2.layout.x, 250).passed) {
+          log('justify-content: center ✅', 'pass');
+        } else {
+          log(`justify-content: center ❌ (x1:${c1.layout.x}, x2:${c2.layout.x}, expected 150,250)`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', justifyContent: 'flex-end' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        // Items end at 500, so start at 500-200 = 300
+        if (assertNear(c1.layout.x, 300).passed && assertNear(c2.layout.x, 400).passed) {
+          log('justify-content: flex-end ✅', 'pass');
+        } else {
+          log(`justify-content: flex-end ❌ (x1:${c1.layout.x}, x2:${c2.layout.x}, expected 300,400)`, 'fail');
+        }
+      })();
+
+      // ==================== align-items Tests ====================
+      logSuite('Flex Layout - align-items');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', alignItems: 'stretch' });
+        const c1 = createNode('div', { width: '100px' }); // no height
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.height, 200).passed) {
+          log('align-items: stretch ✅', 'pass');
+        } else {
+          log(`align-items: stretch ❌ (height:${c1.layout.height}, expected:200)`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', alignItems: 'center' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        // Centered: (200 - 50) / 2 = 75
+        if (assertNear(c1.layout.y, 75).passed) {
+          log('align-items: center ✅', 'pass');
+        } else {
+          log(`align-items: center ❌ (y:${c1.layout.y}, expected:75)`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', alignItems: 'flex-end' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        // At end: 200 - 50 = 150
+        if (assertNear(c1.layout.y, 150).passed) {
+          log('align-items: flex-end ✅', 'pass');
+        } else {
+          log(`align-items: flex-end ❌ (y:${c1.layout.y}, expected:150)`, 'fail');
+        }
+      })();
+
+      // ==================== gap Tests ====================
+      logSuite('Flex Layout - gap');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', gap: '10px' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.x, 0).passed && assertNear(c2.layout.x, 110).passed) {
+          log('gap: 10px ✅', 'pass');
+        } else {
+          log(`gap: 10px ❌ (x1:${c1.layout.x}, x2:${c2.layout.x}, expected 0,110)`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', gap: '20px' });
+        const c1 = createNode('div', { width: '50px', height: '50px' });
+        const c2 = createNode('div', { width: '50px', height: '50px' });
+        const c3 = createNode('div', { width: '50px', height: '50px' });
+        setChildren(parent, c1, c2, c3);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.x, 0).passed && 
+            assertNear(c2.layout.x, 70).passed && // 50 + 20
+            assertNear(c3.layout.x, 140).passed) { // 50 + 20 + 50 + 20
+          log('gap: 20px with 3 items ✅', 'pass');
+        } else {
+          log(`gap: 20px with 3 items ❌ (x:${c1.layout.x},${c2.layout.x},${c3.layout.x})`, 'fail');
+        }
+      })();
+
+      // ==================== flex-grow Tests ====================
+      logSuite('Flex Layout - flex-grow');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex' });
+        const c1 = createNode('div', { width: '100px', flexGrow: '1' });
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        // flex-basis=100, freeSpace=500-100=400, flexGrow=1 so grows by 400
+        if (assertNear(c1.layout.width, 500).passed) {
+          log('flex-grow: 1 ✅', 'pass');
+        } else {
+          log(`flex-grow: 1 ❌ (width:${c1.layout.width}, expected:500)`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex' });
+        const c1 = createNode('div', { width: '100px', flexGrow: '1' });
+        const c2 = createNode('div', { width: '100px', flexGrow: '2' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 600, height: 200 });
+        
+        // Total flex-grow = 3, free space = 600 - 200 = 400
+        // c1: 100 + 400*1/3 = 233, c2: 100 + 400*2/3 = 367
+        const r1 = assertNear(c1.layout.width, 233, 2);
+        const r2 = assertNear(c2.layout.width, 367, 2);
+        if (r1.passed && r2.passed) {
+          log('flex-grow: distributed proportionally ✅', 'pass');
+        } else {
+          log(`flex-grow: proportional ❌ (w1:${c1.layout.width}, w2:${c2.layout.width})`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'column' });
+        const c1 = createNode('div', { height: '50px', flexGrow: '1' });
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 500, height: 300 });
+        
+        // flex-basis=50, freeSpace=300-50=250, flexGrow=1 so grows by 250
+        if (assertNear(c1.layout.height, 300).passed) {
+          log('flex-grow in column direction ✅', 'pass');
+        } else {
+          log(`flex-grow in column ❌ (height:${c1.layout.height}, expected:300)`, 'fail');
+        }
+      })();
+
+      // ==================== flex-basis Tests ====================
+      logSuite('Flex Layout - flex-basis');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'row' });
+        const c1 = createNode('div', { flexBasis: '200px', height: '50px' });
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.width, 200).passed) {
+          log('flex-basis: 200px ✅', 'pass');
+        } else {
+          log(`flex-basis: 200px ❌ (width:${c1.layout.width}, expected:200)`, 'fail');
+        }
+      })();
+
+      // ==================== flex-shrink Tests ====================
+      logSuite('Flex Layout - flex-shrink');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex' });
+        const c1 = createNode('div', { width: '300px', flexShrink: '0' });
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 200, height: 200 });
+        
+        // flex-shrink: 0 means no shrink
+        if (assertNear(c1.layout.width, 300).passed) {
+          log('flex-shrink: 0 (no shrink) ✅', 'pass');
+        } else {
+          log(`flex-shrink: 0 ❌ (width:${c1.layout.width}, expected:300)`, 'fail');
+        }
+      })();
+
+      // ==================== Block Layout Tests ====================
+      logSuite('Block Layout');
+
+      (function() {
+        const parent = createNode('div', { display: 'block' });
+        const c1 = createNode('div', { width: '200px', height: '50px' });
+        const c2 = createNode('div', { width: '200px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcBlockLayout(parent, { width: 500, height: 400 });
+        
+        if (assertNear(c1.layout.y, 0).passed && 
+            assertNear(c2.layout.y, 50).passed &&
+            assertNear(c1.layout.x, 0).passed) {
+          log('block elements stack vertically ✅', 'pass');
+        } else {
+          log(`block stack ❌ (y1:${c1.layout.y}, y2:${c2.layout.y})`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'block' });
+        const c1 = createNode('div', { height: '50px' }); // no width = full container
+        setChildren(parent, c1);
+        calcBlockLayout(parent, { width: 500, height: 400 });
+        
+        if (assertNear(c1.layout.width, 500).passed) {
+          log('block uses full container width ✅', 'pass');
+        } else {
+          log(`block width ❌ (width:${c1.layout.width}, expected:500)`, 'fail');
+        }
+      })();
+
+      // ==================== Parse Padding Tests ====================
+      logSuite('Parse Padding');
+
+      (function() {
+        const result = parsePadding('10px');
+        if (assertEqual(result.top, 10).passed &&
+            assertEqual(result.right, 10).passed &&
+            assertEqual(result.bottom, 10).passed &&
+            assertEqual(result.left, 10).passed) {
+          log('parsePadding: "10px" ✅', 'pass');
+        } else {
+          log(`parsePadding "10px" ❌ (${result.top},${result.right},${result.bottom},${result.left})`, 'fail');
+        }
+      })();
+
+      (function() {
+        const result = parsePadding('10px 20px');
+        if (assertEqual(result.top, 10).passed &&
+            assertEqual(result.right, 20).passed &&
+            assertEqual(result.bottom, 10).passed &&
+            assertEqual(result.left, 20).passed) {
+          log('parsePadding: "10px 20px" ✅', 'pass');
+        } else {
+          log(`parsePadding "10px 20px" ❌`, 'fail');
+        }
+      })();
+
+      (function() {
+        const result = parsePadding('10px 20px 30px 40px');
+        if (assertEqual(result.top, 10).passed &&
+            assertEqual(result.right, 20).passed &&
+            assertEqual(result.bottom, 30).passed &&
+            assertEqual(result.left, 40).passed) {
+          log('parsePadding: "10px 20px 30px 40px" ✅', 'pass');
+        } else {
+          log(`parsePadding "10px 20px 30px 40px" ❌`, 'fail');
+        }
+      })();
+
+      // ==================== Edge Cases ====================
+      logSuite('Edge Cases');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex' });
+        // No children
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertEqual(parent.layout.width, 500).passed &&
+            assertEqual(parent.layout.height, 200).passed) {
+          log('empty flex container ✅', 'pass');
+        } else {
+          log('empty flex container ❌', 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex' });
+        const textNode = createTextNode('Just text');
+        const elemNode = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, textNode, elemNode);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        // Only element nodes should be laid out
+        if (assertNear(elemNode.layout.x, 0).passed &&
+            assertNear(elemNode.layout.width, 100).passed) {
+          log('flex with text node (ignored) ✅', 'pass');
+        } else {
+          log(`flex with text node ❌ (x:${elemNode.layout.x},w:${elemNode.layout.width})`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', gap: '0' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.x, 0).passed && assertNear(c2.layout.x, 100).passed) {
+          log('zero gap ✅', 'pass');
+        } else {
+          log(`zero gap ❌`, 'fail');
+        }
+      })();
+
+      // ==================== Column Direction Tests ====================
+      logSuite('Flex Layout - column direction');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'column', justifyContent: 'center' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 400 });
+        
+        // Total height = 100, centered in 400: start at (400-100)/2 = 150
+        if (assertNear(c1.layout.y, 150).passed && assertNear(c2.layout.y, 200).passed) {
+          log('column + justify-content: center ✅', 'pass');
+        } else {
+          log(`column+center ❌ (y1:${c1.layout.y}, y2:${c2.layout.y})`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'column', alignItems: 'center' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 500, height: 400 });
+        
+        // Centered on cross axis (horizontal): (500 - 100) / 2 = 200
+        if (assertNear(c1.layout.x, 200).passed && assertNear(c1.layout.y, 0).passed) {
+          log('column + align-items: center ✅', 'pass');
+        } else {
+          log(`column+align-center ❌ (x:${c1.layout.x},y:${c1.layout.y})`, 'fail');
+        }
+      })();
+
+      // ==================== Summary ====================
+      const total = passed + failed;
+      console.log(`\n${'='.repeat(50)}`);
+      console.log(`Tests: ${total} | Passed: ${passed} | Failed: ${failed}`);
+      console.log(`${'='.repeat(50)}`);
+      
+      const summaryDiv = document.createElement('div');
+      summaryDiv.className = `summary ${failed === 0 ? 'summary-pass' : 'summary-fail'}`;
+      summaryDiv.innerHTML = `<strong>Summary:</strong> ${total} tests | ${passed} passed | ${failed} failed`;
+      resultsDiv.appendChild(summaryDiv);
+    }
+
+    runTests().catch(err => {
+      resultsDiv.innerHTML = `<pre style="color:red">Error: ${err.message}\n${err.stack}</pre>`;
+      console.error(err);
+    });
+  </script>
+</body>
+</html>

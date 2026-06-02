@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minimal Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100vw; height: 100vh; overflow: hidden; background: #000; }
+    #app { width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="module">
+    // 最小化测试：手动创建虚拟DOM并渲染
+    import { VueRuntimeDOM, NodeType, LayoutEngine, CPURenderer } from './src/vue-runtime.js';
+
+    async function main() {
+      console.log('=== Minimal Test ===');
+      
+      // 创建Canvas
+      const canvas = document.createElement('canvas');
+      canvas.id = 'vue-canvas';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.display = 'block';
+      const container = document.getElementById('app');
+      container.innerHTML = '';
+      container.appendChild(canvas);
+      
+      // 设置Canvas尺寸
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      
+      // 创建渲染器
+      const renderer = new CPURenderer(canvas);
+      
+      // 创建虚拟DOM
+      const root = VueRuntimeDOM.createElement('root');
+      root.layout = { x: 0, y: 0, width: canvas.width, height: canvas.height };
+      
+      // 创建一个简单的红色方块
+      const box = VueRuntimeDOM.createElement('div');
+      box.attrs = { class: 'box' };
+      box.style = {
+        display: 'block',
+        width: '100px',
+        height: '100px',
+        backgroundColor: '#ff0000',
+        borderRadius: '10px'
+      };
+      box.layout = {
+        x: 50,
+        y: 50,
+        width: 100,
+        height: 100,
+        paddingTop: 0,
+        paddingRight: 0,
+        paddingBottom: 0,
+        paddingLeft: 0
+      };
+      
+      VueRuntimeDOM.appendChild(root, box);
+      
+      // 渲染
+      renderer.render(root);
+      
+      console.log('✅ Render complete!');
+    }
+
+    main().catch(console.error);
+  </script>
+</body>
+</html>

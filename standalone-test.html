@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Standalone Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100vw; height: 100vh; overflow: hidden; background: #000; }
+    #app { width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    // 完全独立的测试，不依赖任何模块
+    function main() {
+      console.log('=== Standalone Test ===');
+      
+      // 创建Canvas
+      const canvas = document.createElement('canvas');
+      canvas.id = 'test-canvas';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.display = 'block';
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      
+      const container = document.getElementById('app');
+      container.innerHTML = '';
+      container.appendChild(canvas);
+      
+      const ctx = canvas.getContext('2d');
+      
+      // 绘制白色背景
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // 绘制容器（灰色背景）
+      const containerX = 50;
+      const containerY = 50;
+      const containerWidth = 400;
+      const containerHeight = 120;
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.roundRect(containerX, containerY, containerWidth, containerHeight, 20);
+      ctx.fill();
+      
+      // 绘制红色方块
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath();
+      ctx.roundRect(60, 65, 100, 80, 10);
+      ctx.fill();
+      
+      // 绘制蓝色方块
+      ctx.fillStyle = '#4ecdc4';
+      ctx.beginPath();
+      ctx.roundRect(175, 65, 100, 80, 10);
+      ctx.fill();
+      
+      // 绘制绿色方块
+      ctx.fillStyle = '#45b7d1';
+      ctx.beginPath();
+      ctx.roundRect(290, 65, 100, 80, 10);
+      ctx.fill();
+      
+      console.log('✅ Render complete!');
+    }
+
+    window.addEventListener('DOMContentLoaded', main);
+  </script>
+</body>
+</html>

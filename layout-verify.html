@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout Verification - No Canvas</title>
+  <style>
+    body { background: #1a1a2e; color: #ddd; font-family: 'Consolas', monospace; font-size: 12px; padding: 20px; }
+    h1 { color: #60a5fa; font-size: 16px; }
+    .node-box { 
+      background: #2a2a3e; 
+      border: 1px solid #444; 
+      border-radius: 4px; 
+      padding: 8px; 
+      margin: 5px 0;
+    }
+    .node-tag { color: #f472b6; font-weight: bold; }
+    .node-class { color: #fbbf24; }
+    .layout-info { color: #4ade80; margin-left: 15px; }
+    .layout-item { margin: 2px 0; }
+    .level-0 { margin-left: 0; }
+    .level-1 { margin-left: 20px; }
+    .level-2 { margin-left: 40px; }
+    .level-3 { margin-left: 60px; }
+    pre { background: #0f0f1a; padding: 10px; border-radius: 4px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Layout Verification - Console Output</h1>
+  <pre id="output">Loading...</pre>
+
+  <script type="module">
+    let output = '';
+    
+    function print(msg) {
+      output += msg + '\n';
+      document.getElementById('output').textContent = output;
+      console.log(msg);
+    }
+    
+    try {
+      print('=== Step 1: Import Modules ===');
+      const { VueParser, TemplateParser, StyleSystem, LayoutEngine, CPURenderer, NodeType } = 
+        await import('./src/vue-runtime.js');
+      print('✅ Modules imported');
+      
+      print('\n=== Step 2: Load App.vue ===');
+      const response = await fetch('./src/App.vue');
+      const componentSource = await response.text();
+      print(`Loaded ${componentSource.length} bytes`);
+      
+      print('\n=== Step 3: Parse SFC ===');
+      const parsed = VueParser.parse(componentSource);
+      print(`Component ID: ${parsed.componentId}`);
+      print(`Template length: ${parsed.template.length}`);
+      print(`Styles: ${parsed.styles.length}`);
+      
+      print('\n=== Step 4: Build Virtual DOM ===');
+      const templateParser = new TemplateParser();
+      const rootNode = templateParser.parse(parsed.template);
+      print(`Root children: ${rootNode.children.length}`);
+      
+      print('\n=== Step 5: Add Styles ===');
+      parsed.styles.forEach((style, idx) => {
+        StyleSystem.addStyleSheet(style.code, parsed.componentId);
+      });
+      print(`Added ${parsed.styles.length} style sheet(s)`);
+      
+      print('\n=== Step 6: Inject Scoped ID ===');
+      const injectScopedId = (node) => {
+        if (node.nodeType === NodeType.ELEMENT) {
+          node.componentId = parsed.componentId;
+          node.attrs[parsed.componentId] = "";
+        }
+        node.children.forEach(injectScopedId);
+      };
+      injectScopedId(rootNode);
+      print('Scoped IDs injected');
+      
+      print('\n=== Step 7: Compute Styles ===');
+      const calcTreeStyle = (node) => {
+        node.style = StyleSystem.computeStyle(node);
+        node.children.forEach(calcTreeStyle);
+      };
+      calcTreeStyle(rootNode);
+      print('Styles computed');
+      
+      print('\n=== Step 8: Calculate Layout ===');
+      const viewport = { width: 600, height: 400 };
+      LayoutEngine.layout(rootNode, viewport);
+      print(`Viewport: ${viewport.width}x${viewport.height}`);
+      
+      print('\n=== Step 9: Add Layout Debug Info (v-data-* attributes) ===');
+      
+      // 给每个节点添加布局信息作为临时属性
+      let nodeIndex = 0;
+      const addLayoutDebugInfo = (node, depth = 0) => {
+        if (node.nodeType === NodeType.ELEMENT) {
+          node.__debug_id__ = `node_${nodeIndex++}`;
+          node.__debug_x__ = node.layout.x;
+          node.__debug_y__ = node.layout.y;
+          node.__debug_w__ = node.layout.width;
+          node.__debug_h__ = node.layout.height;
+          node.__debug_display__ = node.style.display || 'block';
+          node.__debug_bg__ = node.style.backgroundColor || 'none';
+        }
+        node.children.forEach(child => addLayoutDebugInfo(child, depth + 1));
+      };
+      addLayoutDebugInfo(rootNode);
+      print(`Debug info added to ${nodeIndex} nodes`);
+      
+      print('\n=== Step 10: Output Layout Tree ===');
+      
+      function printLayoutTree(node, depth = 0) {
+        const indent = '  '.repeat(depth);
+        if (node.nodeType === NodeType.ELEMENT) {
+          const { x, y, width, height } = node.layout;
+          const tag = node.tag;
+          const cls = node.attrs.class || '';
+          const display = node.style.display || 'block';
+          const bg = node.style.backgroundColor || 'none';
+          
+          print(`${indent}📦 ${tag}${cls ? ` class="${cls}"` : ''}`);
+          print(`${indent}   └─ display=${display}, bg=${bg}`);
+          print(`${indent}   └─ x=${x.toFixed(1)}, y=${y.toFixed(1)}, w=${width.toFixed(1)}, h=${height.toFixed(1)}`);
+        }
+        node.children.forEach(child => printLayoutTree(child, depth + 1));
+      }
+      
+      printLayoutTree(rootNode);
+      
+      print('\n=== Step 11: Verify Expected vs Actual ===');
+      
+      // App.vue 结构:
+      // .container (flex, column) -> width=100%, height=100%
+      //   .card (flex, row) -> border-radius=20px, padding=30px
+      //     .box.red -> width=100px, height=80px
+      //     .box.blue -> width=100px, height=80px
+      //     .box.green -> width=100px, height=80px
+      
+      print('Expected layout:');
+      print('  .container: x=0, y=0, w=600, h=400 (viewport)');
+      print('  .card: x=0, y=0 (flex-start), w=360 (100+100+100+30padding+30padding+10gap*2), h=140 (80+30padding*2)');
+      print('  .box.red: x=30, y=30, w=100, h=80');
+      print('  .box.blue: x=140, y=30, w=100, h=80');
+      print('  .box.green: x=250, y=30, w=100, h=80');
+      
+      print('\nActual layout:');
+      
+      function findNode(node, tag) {
+        if (node.nodeType === NodeType.ELEMENT && node.tag === tag) return node;
+        for (const child of node.children) {
+          const found = findNode(child, tag);
+          if (found) return found;
+        }
+        return null;
+      }
+      
+      const container = findNode(rootNode, 'div');
+      if (container) {
+        print(`  .container: x=${container.layout.x}, y=${container.layout.y}, w=${container.layout.width}, h=${container.layout.height}`);
+        print(`    display=${container.style.display}, flexDirection=${container.style.flexDirection}`);
+      }
+      
+      // 找card节点（container的第一个div子节点）
+      if (container && container.children.length > 0) {
+        const card = container.children.find(c => c.nodeType === NodeType.ELEMENT && c.attrs.class === 'card');
+        if (card) {
+          print(`  .card: x=${card.layout.x}, y=${card.layout.y}, w=${card.layout.width}, h=${card.layout.height}`);
+          print(`    display=${card.style.display}, flexDirection=${card.style.flexDirection}`);
+          print(`    padding=${card.style.padding}, borderRadius=${card.style.borderRadius}`);
+        }
+      }
+      
+      print('\n=== ✅ Layout Verification Complete ===');
+      print('If actual matches expected, layout is CORRECT');
+      
+    } catch (err) {
+      print(`❌ Error: ${err.message}`);
+      print(err.stack);
+    }
+  </script>
+</body>
+</html>

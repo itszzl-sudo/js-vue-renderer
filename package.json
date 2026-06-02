@@ -1,0 +1,10 @@
+{
+  "name": "js-vue-renderer",
+  "version": "0.1.0",
+  "description": "Vue + WebGPU Renderer - Pure Browser Implementation",
+  "type": "module",
+  "main": "index.html",
+  "devDependencies": {
+    "playwright": "^1.60.0"
+  }
+}

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Layout Test Suite v2</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f0f1a; color: #ddd; font-family: 'Consolas', monospace; font-size: 12px; padding: 20px; }
+    h1 { color: #60a5fa; font-size: 18px; margin-bottom: 15px; }
+    #results { background: #1a1a2e; border-radius: 8px; padding: 15px; }
+    .test-pass { color: #4ade80; margin: 3px 0; padding: 2px 5px; }
+    .test-fail { color: #f87171; margin: 3px 0; padding: 2px 5px; background: rgba(248, 113, 113, 0.1); }
+    .suite-header { color: #fbbf24; font-weight: bold; margin: 10px 0 5px 0; font-size: 14px; }
+    pre { background: #000; padding: 10px; border-radius: 4px; overflow-x: auto; margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Layout Test Suite v2</h1>
+  <div id="results">Loading tests...</div>
+
+  <script type="module">
+    const resultsDiv = document.getElementById('results');
+    let passed = 0;
+    let failed = 0;
+    
+    function log(msg, type = '') {
+      const div = document.createElement('div');
+      div.className = type ? `test-${type}` : '';
+      div.textContent = msg;
+      resultsDiv.appendChild(div);
+      console.log(msg);
+    }
+    
+    function logSuite(name) {
+      const div = document.createElement('div');
+      div.className = 'suite-header';
+      div.textContent = name;
+      resultsDiv.appendChild(div);
+      console.log(`\n📋 ${name}`);
+    }
+
+    function assertNear(actual, expected, tolerance = 1) {
+      if (Math.abs(actual - expected) <= tolerance) return { passed: true };
+      return { passed: false, expected, actual };
+    }
+
+    function createNode(tag, style = {}, attrs = {}) {
+      return {
+        nodeType: 'element',
+        tag,
+        style: { ...style },
+        attrs: { ...attrs },
+        children: [],
+        layout: { x: 0, y: 0, width: 0, height: 0, paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0 },
+        parent: null
+      };
+    }
+
+    function createTextNode(text) {
+      return { nodeType: 'text', text, children: [], layout: {} };
+    }
+
+    function setChildren(parent, ...children) {
+      parent.children = children;
+      children.forEach(c => c.parent = parent);
+    }
+
+    // Load vue-runtime and run tests
+    async function main() {
+      log('Importing LayoutEngine...');
+      
+      let LayoutEngine, calcFlexLayout, calcBlockLayout, parsePadding;
+      
+      try {
+        const mod = await import('../src/vue-runtime.js');
+        log('Module keys: ' + Object.keys(mod).join(', '), 'pass');
+        
+        LayoutEngine = mod.LayoutEngine;
+        
+        if (!LayoutEngine) {
+          log('❌ LayoutEngine is undefined after import!', 'fail');
+          return;
+        }
+        
+        log('✅ LayoutEngine imported', 'pass');
+        log('LayoutEngine keys: ' + Object.keys(LayoutEngine).join(', '), 'pass');
+        
+        calcFlexLayout = LayoutEngine.calcFlexLayout;
+        calcBlockLayout = LayoutEngine.calcBlockLayout;
+        parsePadding = LayoutEngine.parsePadding;
+        
+        log('calcFlexLayout type: ' + typeof calcFlexLayout);
+        log('calcBlockLayout type: ' + typeof calcBlockLayout);
+        log('parsePadding type: ' + typeof parsePadding);
+        
+      } catch (err) {
+        log('❌ Import failed: ' + err.message, 'fail');
+        log(err.stack, 'fail');
+        return;
+      }
+
+      // ==================== Flex Layout Tests ====================
+      logSuite('Flex Layout - flex-direction');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'row' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        const r1 = assertNear(c1.layout.x, 0);
+        const r2 = assertNear(c1.layout.y, 0);
+        const r3 = assertNear(c1.layout.width, 100);
+        const r4 = assertNear(c1.layout.height, 50);
+        const r5 = assertNear(c2.layout.x, 100);
+        const r6 = assertNear(c2.layout.y, 0);
+        
+        if (r1.passed && r2.passed && r3.passed && r4.passed && r5.passed && r6.passed) {
+          log('flex-direction: row ✅', 'pass');
+        } else {
+          log(`flex-direction: row ❌ (x:${c1.layout.x}, x2:${c2.layout.x})`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'column' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.x, 0).passed && 
+            assertNear(c1.layout.y, 0).passed && 
+            assertNear(c2.layout.x, 0).passed && 
+            assertNear(c2.layout.y, 50).passed) {
+          log('flex-direction: column ✅', 'pass');
+        } else {
+          log(`flex-direction: column ❌ (y1:${c1.layout.y}, y2:${c2.layout.y})`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'row-reverse' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.x, 400).passed && assertNear(c2.layout.x, 300).passed) {
+          log('flex-direction: row-reverse ✅', 'pass');
+        } else {
+          log(`flex-direction: row-reverse ❌ (x1:${c1.layout.x}, x2:${c2.layout.x})`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', flexDirection: 'column-reverse' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.y, 150).passed && assertNear(c2.layout.y, 100).passed) {
+          log('flex-direction: column-reverse ✅', 'pass');
+        } else {
+          log(`flex-direction: column-reverse ❌ (y1:${c1.layout.y}, y2:${c2.layout.y})`, 'fail');
+        }
+      })();
+
+      // ==================== justify-content Tests ====================
+      logSuite('Flex Layout - justify-content');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', justifyContent: 'center' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.x, 150).passed && assertNear(c2.layout.x, 250).passed) {
+          log('justify-content: center ✅', 'pass');
+        } else {
+          log(`justify-content: center ❌ (x1:${c1.layout.x}, x2:${c2.layout.x}, expected 150,250)`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', justifyContent: 'flex-end' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.x, 300).passed && assertNear(c2.layout.x, 400).passed) {
+          log('justify-content: flex-end ✅', 'pass');
+        } else {
+          log(`justify-content: flex-end ❌ (x1:${c1.layout.x}, x2:${c2.layout.x}, expected 300,400)`, 'fail');
+        }
+      })();
+
+      // ==================== align-items Tests ====================
+      logSuite('Flex Layout - align-items');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', alignItems: 'stretch' });
+        const c1 = createNode('div', { width: '100px' });
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.height, 200).passed) {
+          log('align-items: stretch ✅', 'pass');
+        } else {
+          log(`align-items: stretch ❌ (height:${c1.layout.height}, expected:200)`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', alignItems: 'center' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.y, 75).passed) {
+          log('align-items: center ✅', 'pass');
+        } else {
+          log(`align-items: center ❌ (y:${c1.layout.y}, expected:75)`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', alignItems: 'flex-end' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.y, 150).passed) {
+          log('align-items: flex-end ✅', 'pass');
+        } else {
+          log(`align-items: flex-end ❌ (y:${c1.layout.y}, expected:150)`, 'fail');
+        }
+      })();
+
+      // ==================== gap Tests ====================
+      logSuite('Flex Layout - gap');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex', gap: '10px' });
+        const c1 = createNode('div', { width: '100px', height: '50px' });
+        const c2 = createNode('div', { width: '100px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.x, 0).passed && assertNear(c2.layout.x, 110).passed) {
+          log('gap: 10px ✅', 'pass');
+        } else {
+          log(`gap: 10px ❌ (x1:${c1.layout.x}, x2:${c2.layout.x}, expected 0,110)`, 'fail');
+        }
+      })();
+
+      // ==================== flex-grow Tests ====================
+      logSuite('Flex Layout - flex-grow');
+
+      (function() {
+        const parent = createNode('div', { display: 'flex' });
+        const c1 = createNode('div', { width: '100px', flexGrow: '1' });
+        setChildren(parent, c1);
+        calcFlexLayout(parent, { width: 500, height: 200 });
+        
+        if (assertNear(c1.layout.width, 500).passed) {
+          log('flex-grow: 1 ✅', 'pass');
+        } else {
+          log(`flex-grow: 1 ❌ (width:${c1.layout.width}, expected:500)`, 'fail');
+        }
+      })();
+
+      (function() {
+        const parent = createNode('div', { display: 'flex' });
+        const c1 = createNode('div', { width: '100px', flexGrow: '1' });
+        const c2 = createNode('div', { width: '100px', flexGrow: '2' });
+        setChildren(parent, c1, c2);
+        calcFlexLayout(parent, { width: 600, height: 200 });
+        
+        const r1 = assertNear(c1.layout.width, 233, 2);
+        const r2 = assertNear(c2.layout.width, 367, 2);
+        if (r1.passed && r2.passed) {
+          log('flex-grow: distributed proportionally ✅', 'pass');
+        } else {
+          log(`flex-grow: proportional ❌ (w1:${c1.layout.width}, w2:${c2.layout.width})`, 'fail');
+        }
+      })();
+
+      // ==================== Block Layout Tests ====================
+      logSuite('Block Layout');
+
+      (function() {
+        const parent = createNode('div', { display: 'block' });
+        const c1 = createNode('div', { width: '200px', height: '50px' });
+        const c2 = createNode('div', { width: '200px', height: '50px' });
+        setChildren(parent, c1, c2);
+        calcBlockLayout(parent, { width: 500, height: 400 });
+        
+        if (assertNear(c1.layout.y, 0).passed && 
+            assertNear(c2.layout.y, 50).passed &&
+            assertNear(c1.layout.x, 0).passed) {
+          log('block elements stack vertically ✅', 'pass');
+        } else {
+          log(`block stack ❌ (y1:${c1.layout.y}, y2:${c2.layout.y})`, 'fail');
+        }
+      })();
+
+      // ==================== Parse Padding Tests ====================
+      logSuite('Parse Padding');
+
+      if (typeof parsePadding === 'function') {
+        (function() {
+          const result = parsePadding('10px');
+          if (result.top === 10 && result.right === 10 && result.bottom === 10 && result.left === 10) {
+            log('parsePadding: "10px" ✅', 'pass');
+          } else {
+            log(`parsePadding "10px" ❌ (${result.top},${result.right},${result.bottom},${result.left})`, 'fail');
+          }
+        })();
+
+        (function() {
+          const result = parsePadding('10px 20px');
+          if (result.top === 10 && result.right === 20 && result.bottom === 10 && result.left === 20) {
+            log('parsePadding: "10px 20px" ✅', 'pass');
+          } else {
+            log(`parsePadding "10px 20px" ❌`, 'fail');
+          }
+        })();
+      } else {
+        log('parsePadding is not a function: ' + typeof parsePadding, 'fail');
+        if (parsePadding) {
+          log('parsePadding value: ' + JSON.stringify(parsePadding), 'fail');
+        }
+      }
+
+      // ==================== Summary ====================
+      console.log(`\n${'='.repeat(50)}`);
+      console.log(`Tests: ${passed + failed} | Passed: ${passed} | Failed: ${failed}`);
+      console.log(`${'='.repeat(50)}`);
+      
+      const summaryDiv = document.createElement('div');
+      summaryDiv.style.marginTop = '15px';
+      summaryDiv.style.padding = '15px';
+      summaryDiv.style.borderRadius = '8px';
+      summaryDiv.style.fontSize = '14px';
+      summaryDiv.style.background = failed === 0 ? 'rgba(74, 222, 128, 0.2)' : 'rgba(248, 113, 113, 0.2)';
+      summaryDiv.style.color = failed === 0 ? '#4ade80' : '#f87171';
+      summaryDiv.innerHTML = `<strong>Summary:</strong> ${passed + failed} tests | ${passed} passed | ${failed} failed`;
+      resultsDiv.appendChild(summaryDiv);
+    }
+
+    main().catch(err => {
+      resultsDiv.innerHTML = `<pre style="color:red">Error: ${err.message}\n${err.stack}</pre>`;
+      console.error(err);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Step by Step Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100vw; height: 100vh; overflow: hidden; background: #1a1a2e; color: white; font-family: monospace; font-size: 12px; }
+    #app { width: 60vw; height: 100vh; float: left; }
+    #debug { width: 40vw; height: 100vh; float: left; padding: 10px; overflow-y: auto; background: #0f0f1a; }
+    .log-info { color: #60a5fa; }
+    .log-success { color: #4ade80; }
+    .log-error { color: #f87171; }
+    .log-warning { color: #fbbf24; }
+    pre { margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="debug"></div>
+
+  <script type="module">
+    let debugLog = '';
+    
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const types = {
+        info: 'log-info',
+        success: 'log-success',
+        error: 'log-error',
+        warning: 'log-warning'
+      };
+      debugLog += `<span class="${types[type]}">[${timestamp}]</span> ${message}\n`;
+      document.getElementById('debug').innerHTML = '<pre>' + debugLog + '</pre>';
+      console.log(message);
+    }
+
+    // Mock fetch
+    const simpleComponent = `
+      <template>
+        <div class="container">
+          <div class="box red"></div>
+          <div class="box blue"></div>
+          <div class="box green"></div>
+        </div>
+      </template>
+      <script>export default { name: 'App' }</script>
+      <style>
+        .container {
+          display: flex;
+          flex-direction: row;
+          background-color: #ffffff;
+          padding: 20px;
+          border-radius: 10px;
+        }
+        .box {
+          width: 80px;
+          height: 60px;
+          border-radius: 5px;
+          margin-right: 10px;
+        }
+        .red { background-color: #ff6b6b; }
+        .blue { background-color: #4ecdc4; }
+        .green { background-color: #45b7d1; }
+      </style>
+    `;
+    
+    window.fetch = async (url) => {
+      log(`Fetching: ${url}`, 'info');
+      return new Response(simpleComponent, { headers: { 'Content-Type': 'text/plain' } });
+    };
+
+    import('./src/vue-runtime.js').then(async (module) => {
+      log('✅ Module loaded', 'success');
+      
+      const { createApp, VueRuntimeDOM, NodeType, TemplateParser, StyleSystem, LayoutEngine, CPURenderer } = module;
+      
+      // Step 1: Test VueParser
+      log('=== Step 1: Testing VueParser ===', 'info');
+      const parser = new module.VueParser();
+      const parsed = parser.parse(simpleComponent);
+      log(`Template length: ${parsed.template.length}`, 'info');
+      log(`Styles count: ${parsed.styles.length}`, 'info');
+      log(`Component ID: ${parsed.componentId}`, 'info');
+      
+      // Step 2: Test TemplateParser
+      log('=== Step 2: Testing TemplateParser ===', 'info');
+      const templateParser = new TemplateParser();
+      const rootNode = templateParser.parse(parsed.template);
+      log(`Root children: ${rootNode.children.length}`, 'info');
+      if (rootNode.children.length > 0) {
+        const container = rootNode.children[0];
+        log(`Container tag: ${container.tag}`, 'info');
+        log(`Container attrs: ${JSON.stringify(container.attrs)}`, 'info');
+        log(`Container children: ${container.children.length}`, 'info');
+      }
+      
+      // Step 3: Test StyleSystem
+      log('=== Step 3: Testing StyleSystem ===', 'info');
+      parsed.styles.forEach((style, idx) => {
+        log(`  Style ${idx}: ${style.code.substring(0, 50)}...`, 'info');
+        StyleSystem.addStyleSheet(style.code, parsed.componentId);
+      });
+      log(`Global styles count: ${StyleSystem.globalStyles.size}`, 'info');
+      log(`Scoped styles count: ${StyleSystem.scopedStyles.size}`, 'info');
+      
+      // Step 4: Test StyleSystem.computeStyle
+      log('=== Step 4: Testing computeStyle ===', 'info');
+      if (rootNode.children.length > 0) {
+        const container = rootNode.children[0];
+        const style = StyleSystem.computeStyle(container);
+        log(`Container computed style: ${JSON.stringify(style)}`, 'info');
+      }
+      
+      // Step 5: Test LayoutEngine
+      log('=== Step 5: Testing LayoutEngine ===', 'info');
+      const viewport = { width: 500, height: 200 };
+      LayoutEngine.layout(rootNode, viewport);
+      log(`Root layout: ${rootNode.layout.width}x${rootNode.layout.height}`, 'info');
+      if (rootNode.children.length > 0) {
+        const container = rootNode.children[0];
+        log(`Container layout: ${container.layout.x},${container.layout.y} ${container.layout.width}x${container.layout.height}`, 'info');
+      }
+      
+      // Step 6: Test CPURenderer
+      log('=== Step 6: Testing CPURenderer ===', 'info');
+      const canvas = document.createElement('canvas');
+      canvas.id = 'test-canvas';
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      canvas.style.display = 'block';
+      canvas.width = 500;
+      canvas.height = 200;
+      
+      const appContainer = document.getElementById('app');
+      appContainer.innerHTML = '';
+      appContainer.appendChild(canvas);
+      
+      const renderer = new CPURenderer(canvas);
+      renderer.render(rootNode);
+      log('✅ Render complete!', 'success');
+      
+    }).catch(err => {
+      log(`❌ Module load error: ${err.message}`, 'error');
+      log(`Stack: ${err.stack}`, 'error');
+    });
+  </script>
+</body>
+</html>

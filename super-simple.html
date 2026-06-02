@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>超级简单测试</title>
+  <style>
+    body { background: #333; }
+    #log { color: white; }
+    canvas { border: 1px solid #666; background: white; }
+  </style>
+</head>
+<body>
+  <div id="log"></div>
+  <canvas id="c" width="800" height="600"></canvas>
+
+  <script>
+    const logDiv = document.getElementById('log');
+    function log(text) {
+      const p = document.createElement('div');
+      p.textContent = text;
+      logDiv.appendChild(p);
+      console.log(text);
+    }
+    
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    
+    log('=== 开始 ===');
+    
+    log('1. 绘制三个方块');
+    ctx.fillStyle = '#ff6b6b';
+    ctx.fillRect(50, 50, 150, 150);
+    ctx.fillStyle = '#4ecdc4';
+    ctx.fillRect(250, 50, 150, 150);
+    ctx.fillStyle = '#45b7d1';
+    ctx.fillRect(450, 50, 150, 150);
+    
+    log('2. 绘制完成');
+    log('请在控制台看输出');
+    console.log('=== 测试完成 ===');
+  </script>
+</body>
+</html>

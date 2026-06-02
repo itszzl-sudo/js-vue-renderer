@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complete Test - js-vue-renderer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      background: #0f0f1a; 
+      color: #ddd; 
+      font-family: 'Segoe UI', sans-serif; 
+      padding: 20px;
+      display: flex;
+      gap: 20px;
+    }
+    #render-area {
+      flex: 0 0 auto;
+      background: #1a1a2e;
+      padding: 15px;
+      border-radius: 12px;
+    }
+    #debug-area {
+      flex: 1;
+      background: #1a1a2e;
+      padding: 15px;
+      border-radius: 12px;
+      overflow-y: auto;
+      max-height: 95vh;
+    }
+    h1 { color: #60a5fa; font-size: 18px; margin-bottom: 15px; }
+    h2 { color: #4ade80; font-size: 14px; margin: 10px 0 5px 0; }
+    canvas { 
+      display: block; 
+      border: 2px solid #333;
+      border-radius: 8px;
+    }
+    .log { 
+      margin: 2px 0; 
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-family: 'Consolas', monospace;
+      font-size: 11px;
+    }
+    .log-info { color: #60a5fa; }
+    .log-success { color: #4ade80; background: rgba(74, 222, 128, 0.1); }
+    .log-error { color: #f87171; background: rgba(248, 113, 113, 0.1); }
+    .log-warning { color: #fbbf24; }
+    pre { 
+      background: #000; 
+      padding: 8px; 
+      border-radius: 4px; 
+      overflow-x: auto;
+      font-family: 'Consolas', monospace;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div id="render-area">
+    <h1>🎨 Render Output</h1>
+    <canvas id="canvas" width="600" height="400"></canvas>
+  </div>
+  
+  <div id="debug-area">
+    <h1>📋 Debug Log</h1>
+    <div id="log-container"></div>
+  </div>
+
+  <script type="module">
+    const logContainer = document.getElementById('log-container');
+    
+    function log(msg, type = 'info') {
+      const div = document.createElement('div');
+      div.className = `log log-${type}`;
+      const time = new Date().toLocaleTimeString();
+      div.innerHTML = `<span style="opacity:0.6">[${time}]</span> ${msg}`;
+      logContainer.appendChild(div);
+      logContainer.scrollTop = logContainer.scrollHeight;
+      console.log(msg);
+    }
+    
+    function addHeader(text) {
+      const h2 = document.createElement('h2');
+      h2.textContent = text;
+      logContainer.appendChild(h2);
+    }
+    
+    try {
+      addHeader('📦 Step 1: Import Modules');
+      log('Importing vue-runtime.js...', 'info');
+      
+      const { VueParser, TemplateParser, StyleSystem, LayoutEngine, CPURenderer, NodeType } = 
+        await import('./src/vue-runtime.js');
+      
+      log('✅ All modules imported successfully', 'success');
+      log('Available exports: VueParser, TemplateParser, StyleSystem, LayoutEngine, CPURenderer, NodeType', 'info');
+      
+      addHeader('📄 Step 2: Load and Parse Vue Component');
+      log('Loading ./src/App.vue...', 'info');
+      
+      const response = await fetch('./src/App.vue');
+      if (!response.ok) {
+        throw new Error(`Failed to load App.vue: ${response.status}`);
+      }
+      
+      const componentSource = await response.text();
+      log(`Component source: ${componentSource.length} bytes`, 'info');
+      
+      const parsed = VueParser.parse(componentSource);
+      log(`✅ Parse complete`, 'success');
+      log(`  Template: ${parsed.template.length} chars`, 'info');
+      log(`  Component ID: ${parsed.componentId}`, 'info');
+      log(`  Styles: ${parsed.styles.length} block(s)`, 'info');
+      
+      addHeader('🌳 Step 3: Build Virtual DOM');
+      log('Parsing template...', 'info');
+      
+      const templateParser = new TemplateParser();
+      const rootNode = templateParser.parse(parsed.template);
+      
+      function countNodes(node) {
+        let count = 1;
+        node.children.forEach(child => { count += countNodes(child); });
+        return count;
+      }
+      
+      log(`✅ Virtual DOM built`, 'success');
+      log(`  Total nodes: ${countNodes(rootNode)}`, 'info');
+      log(`  Root tag: ${rootNode.tag}`, 'info');
+      log(`  Root children: ${rootNode.children.length}`, 'info');
+      
+      addHeader('🎨 Step 4: Apply Styles');
+      log('Adding style sheets...', 'info');
+      
+      parsed.styles.forEach((style, idx) => {
+        StyleSystem.addStyleSheet(style.code, parsed.componentId);
+        const ruleCount = style.code.split('\n').filter(l => l.includes('{')).length;
+        log(`  Style ${idx + 1}: ${ruleCount} rules`, 'info');
+      });
+      
+      log('Injecting scoped component ID...', 'info');
+      const injectScopedId = (node) => {
+        if (node.nodeType === NodeType.ELEMENT) {
+          node.componentId = parsed.componentId;
+          node.attrs[parsed.componentId] = "";
+        }
+        node.children.forEach(injectScopedId);
+      };
+      injectScopedId(rootNode);
+      
+      log('Computing styles for all nodes...', 'info');
+      const calcTreeStyle = (node) => {
+        node.style = StyleSystem.computeStyle(node);
+        node.children.forEach(calcTreeStyle);
+      };
+      calcTreeStyle(rootNode);
+      
+      log('✅ Styles computed', 'success');
+      
+      addHeader('📐 Step 5: Calculate Layout');
+      log('Viewport: 600x400', 'info');
+      
+      const viewport = { width: 600, height: 400 };
+      LayoutEngine.layout(rootNode, viewport);
+      
+      function logLayout(node, depth = 0) {
+        const indent = '  '.repeat(depth);
+        if (node.nodeType === NodeType.ELEMENT) {
+          const { x, y, width, height } = node.layout;
+          const bg = node.style.backgroundColor || 'none';
+          log(`${indent}${node.tag}: (${x.toFixed(0)}, ${y.toFixed(0)}) ${width.toFixed(0)}x${height.toFixed(0)} bg=${bg}`, 'info');
+          node.children.forEach(c => logLayout(c, depth + 1));
+        }
+      }
+      logLayout(rootNode);
+      
+      log('✅ Layout calculated', 'success');
+      
+      addHeader('🖼️ Step 6: Render to Canvas');
+      log('Initializing CPU renderer...', 'info');
+      
+      const canvas = document.getElementById('canvas');
+      const renderer = new CPURenderer(canvas);
+      renderer.init();
+      
+      log('Rendering node tree...', 'info');
+      renderer.render(rootNode);
+      
+      log('✅ Render complete!', 'success');
+      
+      addHeader('✅ All Steps Completed Successfully');
+      log('The canvas should now display three colored boxes', 'success');
+      
+    } catch (err) {
+      addHeader('❌ Error Occurred');
+      log(`Message: ${err.message}`, 'error');
+      
+      const pre = document.createElement('pre');
+      pre.textContent = err.stack;
+      logContainer.appendChild(pre);
+      
+      console.error(err);
+    }
+  </script>
+</body>
+</html>

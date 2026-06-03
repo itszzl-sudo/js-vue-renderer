@@ -1557,5 +1557,541 @@ export async function createApp(url) {
   }
 }
 
+// ==================== 11. Virtual DOM Diff Algorithm ====================
+class VNode {
+  constructor(tag, data = {}, children = [], text = '', elm = null) {
+    this.tag = tag;
+    this.data = data;
+    this.children = children;
+    this.text = text;
+    this.elm = elm;
+    this.key = data && data.key;
+    this.componentInstance = null;
+  }
+}
+
+class VNodeDiff {
+  static patch(oldVNode, newVNode) {
+    if (!oldVNode) {
+      return this.createElm(newVNode);
+    }
+    
+    if (!newVNode) {
+      this.removeElm(oldVNode.elm);
+      return null;
+    }
+    
+    if (this.sameVNode(oldVNode, newVNode)) {
+      this.patchVNode(oldVNode, newVNode);
+      return oldVNode.elm;
+    }
+    
+    const oldElm = oldVNode.elm;
+    const parentElm = oldElm.parentNode;
+    const newElm = this.createElm(newVNode);
+    
+    if (parentElm) {
+      parentElm.insertBefore(newElm, oldElm);
+      this.removeElm(oldVNode.elm);
+    }
+    
+    return newElm;
+  }
+  
+  static sameVNode(oldVNode, newVNode) {
+    return (
+      oldVNode.tag === newVNode.tag &&
+      oldVNode.key === newVNode.key
+    );
+  }
+  
+  static patchVNode(oldVNode, newVNode) {
+    const elm = newVNode.elm = oldVNode.elm;
+    
+    if (oldVNode.text !== newVNode.text) {
+      elm.textContent = newVNode.text;
+    }
+    
+    if (oldVNode.data || newVNode.data) {
+      this.patchData(elm, oldVNode.data || {}, newVNode.data || {});
+    }
+    
+    this.patchChildren(oldVNode.children, newVNode.children, elm);
+  }
+  
+  static patchData(elm, oldData, newData) {
+    for (const key in newData) {
+      if (newData[key] !== oldData[key]) {
+        if (key === 'style') {
+          Object.assign(elm.style, newData[key]);
+        } else if (key.startsWith('on')) {
+          const event = key.slice(2).toLowerCase();
+          elm.removeEventListener(event, oldData[key]);
+          elm.addEventListener(event, newData[key]);
+        } else {
+          elm.setAttribute(key, newData[key]);
+        }
+      }
+    }
+    
+    for (const key in oldData) {
+      if (!(key in newData)) {
+        if (key === 'style') {
+          for (const styleKey in oldData[key]) {
+            elm.style[styleKey] = '';
+          }
+        } else if (key.startsWith('on')) {
+          const event = key.slice(2).toLowerCase();
+          elm.removeEventListener(event, oldData[key]);
+        } else {
+          elm.removeAttribute(key);
+        }
+      }
+    }
+  }
+  
+  static patchChildren(oldChildren, newChildren, elm) {
+    let oldStartIdx = 0;
+    let oldEndIdx = oldChildren.length - 1;
+    let newStartIdx = 0;
+    let newEndIdx = newChildren.length - 1;
+    
+    let oldStartVNode = oldChildren[oldStartIdx];
+    let oldEndVNode = oldChildren[oldEndIdx];
+    let newStartVNode = newChildren[newStartIdx];
+    let newEndVNode = newChildren[newEndIdx];
+    
+    const oldKeyToIdx = {};
+    
+    while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+      if (!oldStartVNode) {
+        oldStartVNode = oldChildren[++oldStartIdx];
+      } else if (!oldEndVNode) {
+        oldEndVNode = oldChildren[--oldEndIdx];
+      } else if (this.sameVNode(oldStartVNode, newStartVNode)) {
+        this.patchVNode(oldStartVNode, newStartVNode);
+        oldStartVNode = oldChildren[++oldStartIdx];
+        newStartVNode = newChildren[++newStartIdx];
+      } else if (this.sameVNode(oldEndVNode, newEndVNode)) {
+        this.patchVNode(oldEndVNode, newEndVNode);
+        oldEndVNode = oldChildren[--oldEndIdx];
+        newEndVNode = newChildren[--newEndIdx];
+      } else if (this.sameVNode(oldStartVNode, newEndVNode)) {
+        this.patchVNode(oldStartVNode, newEndVNode);
+        elm.insertBefore(oldStartVNode.elm, oldEndVNode.elm.nextSibling);
+        oldStartVNode = oldChildren[++oldStartIdx];
+        newEndVNode = newChildren[--newEndIdx];
+      } else if (this.sameVNode(oldEndVNode, newStartVNode)) {
+        this.patchVNode(oldEndVNode, newStartVNode);
+        elm.insertBefore(oldEndVNode.elm, oldStartVNode.elm);
+        oldEndVNode = oldChildren[--oldEndIdx];
+        newStartVNode = newChildren[++newStartIdx];
+      } else {
+        if (!oldKeyToIdx.length) {
+          for (let i = oldStartIdx; i <= oldEndIdx; i++) {
+            if (oldChildren[i] && oldChildren[i].key) {
+              oldKeyToIdx[oldChildren[i].key] = i;
+            }
+          }
+        }
+        
+        const idxInOld = newStartVNode.key ? oldKeyToIdx[newStartVNode.key] : null;
+        
+        if (idxInOld !== null) {
+          const vnodeToMove = oldChildren[idxInOld];
+          this.patchVNode(vnodeToMove, newStartVNode);
+          oldChildren[idxInOld] = undefined;
+          elm.insertBefore(vnodeToMove.elm, oldStartVNode.elm);
+        } else {
+          const newElm = this.createElm(newStartVNode);
+          elm.insertBefore(newElm, oldStartVNode.elm);
+        }
+        
+        newStartVNode = newChildren[++newStartIdx];
+      }
+    }
+    
+    while (oldStartIdx <= oldEndIdx) {
+      if (oldChildren[oldStartIdx]) {
+        this.removeElm(oldChildren[oldStartIdx].elm);
+      }
+      oldStartIdx++;
+    }
+    
+    while (newStartIdx <= newEndIdx) {
+      const newElm = this.createElm(newChildren[newStartIdx]);
+      elm.appendChild(newElm);
+      newStartIdx++;
+    }
+  }
+  
+  static createElm(vnode) {
+    const { tag, data, children, text } = vnode;
+    
+    let elm;
+    if (tag) {
+      elm = document.createElement(tag);
+      if (data) {
+        this.patchData(elm, {}, data);
+      }
+    } else {
+      elm = document.createTextNode(text);
+    }
+    
+    vnode.elm = elm;
+    
+    if (children && children.length) {
+      children.forEach(child => {
+        elm.appendChild(this.createElm(child));
+      });
+    }
+    
+    return elm;
+  }
+  
+  static removeElm(elm) {
+    if (elm && elm.parentNode) {
+      elm.parentNode.removeChild(elm);
+    }
+  }
+}
+
+// ==================== 12. Reactive Data Binding ====================
+class Dep {
+  constructor() {
+    this.subs = [];
+  }
+  
+  depend() {
+    if (Dep.target) {
+      Dep.target.addDep(this);
+    }
+  }
+  
+  notify() {
+    this.subs.forEach(sub => sub.update());
+  }
+  
+  addSub(sub) {
+    this.subs.push(sub);
+  }
+  
+  removeSub(sub) {
+    const idx = this.subs.indexOf(sub);
+    if (idx > -1) {
+      this.subs.splice(idx, 1);
+    }
+  }
+}
+
+Dep.target = null;
+
+class Watcher {
+  constructor(vm, expOrFn, cb) {
+    this.vm = vm;
+    this.cb = cb;
+    this.deps = [];
+    this.depIds = new Set();
+    
+    if (typeof expOrFn === 'function') {
+      this.getter = expOrFn;
+    } else {
+      this.getter = this.parsePath(expOrFn);
+    }
+    
+    this.value = this.get();
+  }
+  
+  get() {
+    Dep.target = this;
+    const value = this.getter.call(this.vm, this.vm);
+    Dep.target = null;
+    return value;
+  }
+  
+  addDep(dep) {
+    if (!this.depIds.has(dep)) {
+      this.depIds.add(dep);
+      this.deps.push(dep);
+      dep.addSub(this);
+    }
+  }
+  
+  update() {
+    const oldValue = this.value;
+    this.value = this.get();
+    this.cb.call(this.vm, this.value, oldValue);
+  }
+  
+  parsePath(path) {
+    const segments = path.split('.');
+    return function(obj) {
+      for (let i = 0; i < segments.length; i++) {
+        if (!obj) return;
+        obj = obj[segments[i]];
+      }
+      return obj;
+    };
+  }
+}
+
+function defineReactive(obj, key, val) {
+  const dep = new Dep();
+  
+  Object.defineProperty(obj, key, {
+    enumerable: true,
+    configurable: true,
+    get: function reactiveGetter() {
+      dep.depend();
+      return val;
+    },
+    set: function reactiveSetter(newVal) {
+      if (newVal === val) return;
+      val = newVal;
+      dep.notify();
+    }
+  });
+  
+  if (typeof val === 'object' && val !== null) {
+    observe(val);
+  }
+}
+
+function observe(obj) {
+  if (typeof obj !== 'object' || obj === null) return;
+  
+  Object.keys(obj).forEach(key => {
+    defineReactive(obj, key, obj[key]);
+  });
+}
+
+class VueReactive {
+  constructor(data) {
+    this._data = data;
+    observe(data);
+    this.proxyData();
+  }
+  
+  proxyData() {
+    Object.keys(this._data).forEach(key => {
+      Object.defineProperty(this, key, {
+        enumerable: true,
+        configurable: true,
+        get: () => this._data[key],
+        set: (val) => {
+          this._data[key] = val;
+        }
+      });
+    });
+  }
+  
+  $watch(expOrFn, cb) {
+    return new Watcher(this, expOrFn, cb);
+  }
+}
+
+// ==================== 13. Directive System ====================
+class DirectiveManager {
+  static parseDirectives(attrs) {
+    const directives = {};
+    
+    for (const key in attrs) {
+      if (key.startsWith('v-')) {
+        const directiveName = key.slice(2);
+        directives[directiveName] = attrs[key];
+        delete attrs[key];
+      }
+    }
+    
+    return directives;
+  }
+  
+  static processDirectives(node, directives, context) {
+    if (!directives) return;
+    
+    if (directives['if'] !== undefined) {
+      this.processVIf(node, directives['if'], context);
+    }
+    
+    if (directives['for'] !== undefined) {
+      return this.processVFor(node, directives['for'], context);
+    }
+    
+    if (directives['bind'] !== undefined) {
+      this.processVBind(node, directives['bind'], context);
+    }
+    
+    if (directives['on'] !== undefined) {
+      this.processVOn(node, directives['on'], context);
+    }
+    
+    return [node];
+  }
+  
+  static processVIf(node, expression, context) {
+    const value = this.evaluateExpression(expression, context);
+    if (!value) {
+      node._hidden = true;
+    } else {
+      delete node._hidden;
+    }
+  }
+  
+  static processVFor(node, expression, context) {
+    const match = expression.match(/(\w+)\s+in\s+(.+)/);
+    if (!match) return [node];
+    
+    const [, itemName, listExpr] = match;
+    const list = this.evaluateExpression(listExpr, context);
+    
+    if (!Array.isArray(list)) return [node];
+    
+    const nodes = [];
+    
+    list.forEach((item, index) => {
+      const newNode = this.cloneNode(node);
+      newNode._forIndex = index;
+      newNode._forItem = item;
+      
+      const itemContext = { ...context };
+      itemContext[itemName] = item;
+      itemContext['index'] = index;
+      
+      newNode.text = this.interpolateText(newNode.text || '', itemContext);
+      
+      if (newNode.children) {
+        newNode.children.forEach(child => {
+          this.processChildNode(child, itemContext);
+        });
+      }
+      
+      nodes.push(newNode);
+    });
+    
+    return nodes;
+  }
+  
+  static processVBind(node, expression, context) {
+    const match = expression.match(/(\w+)\s*:\s*(.+)/);
+    if (!match) return;
+    
+    const [, attrName, valueExpr] = match;
+    const value = this.evaluateExpression(valueExpr, context);
+    
+    if (attrName === 'style') {
+      Object.assign(node.style, value);
+    } else {
+      node.attrs[attrName] = value;
+    }
+  }
+  
+  static processVOn(node, expression, context) {
+    const match = expression.match(/(\w+)\s*=\s*(.+)/);
+    if (!match) return;
+    
+    const [, eventName, handlerName] = match;
+    
+    if (context && typeof context[handlerName] === 'function') {
+      node._events = node._events || {};
+      node._events[eventName] = context[handlerName].bind(context);
+    }
+  }
+  
+  static evaluateExpression(expr, context) {
+    try {
+      const fn = new Function(...Object.keys(context || {}), `return ${expr}`);
+      return fn(...Object.values(context || {}));
+    } catch (e) {
+      console.warn('Expression evaluation error:', expr, e);
+      return null;
+    }
+  }
+  
+  static interpolateText(text, context) {
+    if (!text) return text;
+    
+    return text.replace(/\{\{(.+?)\}\}/g, (match, expr) => {
+      const value = this.evaluateExpression(expr.trim(), context);
+      return value !== undefined ? value : '';
+    });
+  }
+  
+  static processChildNode(node, context) {
+    if (!node) return;
+    
+    if (node.nodeType === NodeType.TEXT) {
+      node.text = this.interpolateText(node.text, context);
+    }
+    
+    if (node.children) {
+      node.children.forEach(child => this.processChildNode(child, context));
+    }
+  }
+  
+  static cloneNode(node) {
+    const newNode = new CustomNode(node.nodeType);
+    Object.assign(newNode, node);
+    newNode.children = node.children ? node.children.map(c => this.cloneNode(c)) : [];
+    return newNode;
+  }
+}
+
+// ==================== 14. Event System ====================
+class EventSystem {
+  constructor() {
+    this.listeners = {};
+  }
+  
+  on(eventName, handler) {
+    if (!this.listeners[eventName]) {
+      this.listeners[eventName] = [];
+    }
+    this.listeners[eventName].push(handler);
+  }
+  
+  off(eventName, handler) {
+    if (!this.listeners[eventName]) return;
+    
+    const idx = this.listeners[eventName].indexOf(handler);
+    if (idx > -1) {
+      this.listeners[eventName].splice(idx, 1);
+    }
+  }
+  
+  emit(eventName, ...args) {
+    if (!this.listeners[eventName]) return;
+    
+    this.listeners[eventName].forEach(handler => {
+      try {
+        handler(...args);
+      } catch (e) {
+        console.error('Event handler error:', e);
+      }
+    });
+  }
+  
+  once(eventName, handler) {
+    const onceHandler = (...args) => {
+      handler(...args);
+      this.off(eventName, onceHandler);
+    };
+    this.on(eventName, onceHandler);
+  }
+  
+  delegate(el, eventName, selector, handler) {
+    const delegateHandler = (e) => {
+      const target = e.target;
+      const matched = target.closest(selector);
+      
+      if (matched && el.contains(matched)) {
+        handler.call(matched, e);
+      }
+    };
+    
+    this.on(eventName, delegateHandler);
+    return () => this.off(eventName, delegateHandler);
+  }
+}
+
 // Export other classes for debugging
-export { VueRuntimeDOM, NodeType, CPURenderer, LayoutEngine, StyleSystem, TemplateParser, VueParser };
+export { VueRuntimeDOM, NodeType, CPURenderer, LayoutEngine, StyleSystem, TemplateParser, VueParser, VNode, VNodeDiff, VueReactive, DirectiveManager, EventSystem };

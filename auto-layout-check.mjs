@@ -7,7 +7,7 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const URL = 'http://localhost:8080/index-complex.html';
+const URL = 'http://localhost:8080/js-vue-renderer/index-complex.html';
 
 const report = {
   pageLoaded: false,

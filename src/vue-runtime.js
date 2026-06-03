@@ -1,9 +1,11 @@
 /**
  * Vue Runtime Engine (CPU Rendering Version)
  * Complete implementation: Vue SFC parsing, Virtual DOM, Style calculation, Layout engine, Canvas 2D rendering
+ * 
+ * Core modules are shared with embed-renderer via shared-core/js/
  */
-import { StyleParser } from './core/style-parser.js';
-import { ColorParser } from './core/color-parser.js';
+import { StyleParser } from '../shared-core/js/style-parser.js';
+import { ColorParser } from '../shared-core/js/color-parser.js';
 
 // ==================== 1. Vue SFC Parser ====================
 class VueParser {

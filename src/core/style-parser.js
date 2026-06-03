@@ -286,7 +286,10 @@ export class StyleParser {
     const colorMatches = gradientStr.match(colorPattern);
     
     let colors = colorMatches ? colorMatches.filter(c => {
-      return c && c.length > 0 && !['to', 'from', 'via', 'linear', 'radial', 'conic', 'gradient', 'circle', 'ellipse'].includes(c.toLowerCase());
+      const lower = c.toLowerCase();
+      const nonColorWords = ['to', 'from', 'via', 'linear', 'radial', 'conic', 'gradient', 'circle', 'ellipse',
+        'closest', 'farthest', 'side', 'corner', 'top', 'bottom', 'left', 'right', 'center', 'at'];
+      return c && c.length > 0 && !nonColorWords.includes(lower);
     }) : [];
     
     if (colors.length < 2) {

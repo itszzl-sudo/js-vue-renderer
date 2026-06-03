@@ -24,6 +24,8 @@ export class SELWebGPU {
     this.contextLost = false;
     this.destroyed = false;
     this.lastError = null;
+    this._rafId = null;           // requestAnimationFrame ID
+    this._pendingBuffers = [];    // 待销毁的 GPU Buffer 队列
 
     // 性能监控
     this.animationTime = 0;
@@ -625,7 +627,10 @@ export class SELWebGPU {
     }
 
     this.animationTime += 1 / 60;
-    requestAnimationFrame(() => this.renderLoop());
+    // 在销毁后不再调度新帧
+    if (!this.destroyed) {
+      this._rafId = requestAnimationFrame(() => this.renderLoop());
+    }
   }
 
   /**
@@ -644,8 +649,8 @@ export class SELWebGPU {
       pass.setVertexBuffer(0, shadowBuf);
       pass.draw(shadowData.length / 32);
 
-      // 延迟销毁 buffer
-      setTimeout(() => this._destroyBuffer(shadowBuf), 100);
+      // 安全延迟销毁 buffer（使用 GPU 完成回调）
+      this._safeDestroyBuffer(shadowBuf);
     } catch (error) {
       this._reportError(`阴影渲染失败: ${error.message}`, error);
       this._destroyBuffer(shadowBuf);
@@ -668,7 +673,7 @@ export class SELWebGPU {
       pass.setVertexBuffer(0, borderBuf);
       pass.draw(borderData.length / 32);
 
-      setTimeout(() => this._destroyBuffer(borderBuf), 100);
+      this._safeDestroyBuffer(borderBuf);
     } catch (error) {
       this._reportError(`边框渲染失败: ${error.message}`, error);
       this._destroyBuffer(borderBuf);
@@ -691,7 +696,7 @@ export class SELWebGPU {
       pass.setVertexBuffer(0, vertexBuf);
       pass.draw(vertexData.length / 32);
 
-      setTimeout(() => this._destroyBuffer(vertexBuf), 100);
+      this._safeDestroyBuffer(vertexBuf);
     } catch (error) {
       this._reportError(`布局渲染失败: ${error.message}`, error);
       this._destroyBuffer(vertexBuf);
@@ -805,7 +810,12 @@ export class SELWebGPU {
         const rect = [-1, -1, 1, 1];
         const radiusTL = 0, radiusTR = 0, radiusBR = 0, radiusBL = 0;
 
-        const transform = task.transform || { translate: [0, 0], rotate: 0, scale: [1, 1] };
+        const rawTransform = task.transform || {};
+        const transform = {
+          translate: Array.isArray(rawTransform.translate) ? rawTransform.translate : [0, 0],
+          rotate: typeof rawTransform.rotate === 'number' ? rawTransform.rotate : 0,
+          scale: Array.isArray(rawTransform.scale) ? rawTransform.scale : [1, 1]
+        };
         const translate = [transform.translate[0] / w * 2, -transform.translate[1] / h * 2];
         const rotate = transform.rotate * Math.PI / 180;
         const scale = transform.scale;
@@ -874,7 +884,12 @@ export class SELWebGPU {
         const rect = [-1, -1, 1, 1];
         const radiusTL = 0, radiusTR = 0, radiusBR = 0, radiusBL = 0;
 
-        const transform = task.transform || { translate: [0, 0], rotate: 0, scale: [1, 1] };
+        const rawTransform = task.transform || {};
+        const transform = {
+          translate: Array.isArray(rawTransform.translate) ? rawTransform.translate : [0, 0],
+          rotate: typeof rawTransform.rotate === 'number' ? rawTransform.rotate : 0,
+          scale: Array.isArray(rawTransform.scale) ? rawTransform.scale : [1, 1]
+        };
         const translate = [transform.translate[0] / w * 2, -transform.translate[1] / h * 2];
         const rotate = transform.rotate * Math.PI / 180;
         const scale = transform.scale;
@@ -979,7 +994,7 @@ export class SELWebGPU {
       pass.setVertexBuffer(0, decoBuf);
       pass.draw(decoData.length / 32);
 
-      setTimeout(() => this._destroyBuffer(decoBuf), 100);
+      this._safeDestroyBuffer(decoBuf);
     } catch (error) {
       this._reportError(`文本装饰渲染失败: ${error.message}`, error);
       this._destroyBuffer(decoBuf);
@@ -1055,7 +1070,7 @@ export class SELWebGPU {
       pass.setVertexBuffer(0, shadowBuf);
       pass.draw(shadowData.length / 32);
 
-      setTimeout(() => this._destroyBuffer(shadowBuf), 100);
+      this._safeDestroyBuffer(shadowBuf);
     } catch (error) {
       this._reportError(`文字阴影渲染失败: ${error.message}`, error);
       this._destroyBuffer(shadowBuf);
@@ -1069,10 +1084,47 @@ export class SELWebGPU {
     this.destroyed = true;
     this.initialized = false;
 
+    // 取消未执行的动画帧
+    if (this._rafId !== null) {
+      cancelAnimationFrame(this._rafId);
+      this._rafId = null;
+    }
+
+    // 清理待销毁的 buffer 队列
+    this._flushPendingBuffers();
+    this._pendingBuffers = [];
+
     this._cleanup();
     this.layoutTasks = [];
 
     console.log('🗑️ 渲染引擎已销毁');
+  }
+
+  /**
+   * 安全销毁 Buffer（使用 GPU 完成回调替代 setTimeout）
+   */
+  _safeDestroyBuffer(buffer) {
+    if (!buffer) return;
+    if (this.device && this.device.queue) {
+      this._pendingBuffers.push(buffer);
+      this.device.queue.onSubmittedWorkDone().then(() => {
+        this._flushPendingBuffers();
+      }).catch(() => {
+        this._flushPendingBuffers();
+      });
+    } else {
+      this._destroyBuffer(buffer);
+    }
+  }
+
+  /**
+   * 清空待销毁的 buffer 队列
+   */
+  _flushPendingBuffers() {
+    while (this._pendingBuffers.length > 0) {
+      const buf = this._pendingBuffers.shift();
+      this._destroyBuffer(buf);
+    }
   }
 
   /**

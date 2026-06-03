@@ -1038,8 +1038,9 @@ class LayoutEngine {
         }
       }
       
-      let mainAxisOffset = 0;
-      let extraGap = 0;
+      // 重置每行的对齐偏移（复用外层变量）
+      mainAxisOffset = 0;
+      extraGap = 0;
       
       if (justifyContent === 'center') {
         mainAxisOffset = (mainSize - lineTotalSize) / 2;

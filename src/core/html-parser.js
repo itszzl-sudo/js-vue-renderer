@@ -155,9 +155,9 @@ export class HTMLDocumentParser {
       if (tagName === 'svg') {
         const svgEndMatch = content.substr(pos).match(/<\/svg>/i);
         if (svgEndMatch) {
-          const svgContent = content.substr(0, pos);
+          const svgContent = content.substr(pos, svgEndMatch.index);
           element.children = this.parseElements(svgContent);
-          pos += svgEndMatch[0].length;
+          pos += svgEndMatch.index + svgEndMatch[0].length;
         }
       }
 

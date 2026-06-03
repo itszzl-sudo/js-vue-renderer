@@ -1,114 +1,113 @@
-
-&lt;template&gt;
-  &lt;div class="dashboard"&gt;
-    &lt;div class="header"&gt;
-      &lt;h1 class="title"&gt;WebGPU Vue Renderer&lt;/h1&gt;
-      &lt;div class="stats"&gt;
-        &lt;div class="stat"&gt;
-          &lt;div class="stat-value"&gt;12.8K&lt;/div&gt;
-          &lt;div class="stat-label"&gt;渲染帧率&lt;/div&gt;
-        &lt;/div&gt;
-        &lt;div class="stat"&gt;
-          &lt;div class="stat-value"&gt;99%&lt;/div&gt;
-          &lt;div class="stat-label"&gt;性能优化&lt;/div&gt;
-        &lt;/div&gt;
-        &lt;div class="stat"&gt;
-          &lt;div class="stat-value"&gt;79&lt;/div&gt;
-          &lt;div class="stat-label"&gt;测试通过&lt;/div&gt;
-        &lt;/div&gt;
-      &lt;/div&gt;
-    &lt;/div&gt;
+<template>
+  <div class="dashboard">
+    <div class="header">
+      <h1 class="title">WebGPU Vue Renderer</h1>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-value">12.8K</div>
+          <div class="stat-label">渲染帧率</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">99%</div>
+          <div class="stat-label">性能优化</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">79</div>
+          <div class="stat-label">测试通过</div>
+        </div>
+      </div>
+    </div>
     
-    &lt;div class="grid-section"&gt;
-      &lt;div class="card primary-card"&gt;
-        &lt;div class="card-header"&gt;
-          &lt;h2 class="card-title"&gt;Flex 布局系统&lt;/h2&gt;
-        &lt;/div&gt;
-        &lt;div class="card-content"&gt;
-          &lt;div class="flex-row"&gt;
-            &lt;div class="item item-blue"&gt;flex&lt;/div&gt;
-            &lt;div class="item item-green"&gt;布局&lt;/div&gt;
-            &lt;div class="item item-purple"&gt;完美&lt;/div&gt;
-          &lt;/div&gt;
-        &lt;/div&gt;
-      &lt;/div&gt;
+    <div class="grid-section">
+      <div class="card primary-card">
+        <div class="card-header">
+          <h2 class="card-title">Flex 布局系统</h2>
+        </div>
+        <div class="card-content">
+          <div class="flex-row">
+            <div class="item item-blue">flex</div>
+            <div class="item item-green">布局</div>
+            <div class="item item-purple">完美</div>
+          </div>
+        </div>
+      </div>
       
-      &lt;div class="card"&gt;
-        &lt;div class="card-header"&gt;
-          &lt;h2 class="card-title"&gt;对齐模式&lt;/h2&gt;
-        &lt;/div&gt;
-        &lt;div class="card-content"&gt;
-          &lt;div class="align-demo"&gt;
-            &lt;div class="align-item"&gt;1&lt;/div&gt;
-            &lt;div class="align-item"&gt;2&lt;/div&gt;
-            &lt;div class="align-item"&gt;3&lt;/div&gt;
-          &lt;/div&gt;
-        &lt;/div&gt;
-      &lt;/div&gt;
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">对齐模式</h2>
+        </div>
+        <div class="card-content">
+          <div class="align-demo">
+            <div class="align-item">1</div>
+            <div class="align-item">2</div>
+            <div class="align-item">3</div>
+          </div>
+        </div>
+      </div>
       
-      &lt;div class="card"&gt;
-        &lt;div class="card-header"&gt;
-          &lt;h2 class="card-title"&gt;间距与圆角&lt;/h2&gt;
-        &lt;/div&gt;
-        &lt;div class="card-content"&gt;
-          &lt;div class="grid-items"&gt;
-            &lt;div class="grid-item grid-red"&gt;&lt;/div&gt;
-            &lt;div class="grid-item grid-blue"&gt;&lt;/div&gt;
-            &lt;div class="grid-item grid-green"&gt;&lt;/div&gt;
-            &lt;div class="grid-item grid-yellow"&gt;&lt;/div&gt;
-            &lt;div class="grid-item grid-purple"&gt;&lt;/div&gt;
-            &lt;div class="grid-item grid-pink"&gt;&lt;/div&gt;
-          &lt;/div&gt;
-        &lt;/div&gt;
-      &lt;/div&gt;
-    &lt;/div&gt;
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">间距与圆角</h2>
+        </div>
+        <div class="card-content">
+          <div class="grid-items">
+            <div class="grid-item grid-red"></div>
+            <div class="grid-item grid-blue"></div>
+            <div class="grid-item grid-green"></div>
+            <div class="grid-item grid-yellow"></div>
+            <div class="grid-item grid-purple"></div>
+            <div class="grid-item grid-pink"></div>
+          </div>
+        </div>
+      </div>
+    </div>
     
-    &lt;div class="main-content"&gt;
-      &lt;div class="card large-card"&gt;
-        &lt;div class="card-header"&gt;
-          &lt;h2 class="card-title"&gt;组件系统与样式隔离&lt;/h2&gt;
-        &lt;/div&gt;
-        &lt;div class="card-content"&gt;
-          &lt;div class="columns"&gt;
-            &lt;div class="column"&gt;
-              &lt;div class="feature"&gt;
-                &lt;div class="feature-icon"&gt;🎨&lt;/div&gt;
-                &lt;h3&gt;完整样式系统&lt;/h3&gt;
-                &lt;p&gt;支持全局样式和 Scoped 样式隔离&lt;/p&gt;
-              &lt;/div&gt;
-            &lt;/div&gt;
-            &lt;div class="column"&gt;
-              &lt;div class="feature"&gt;
-                &lt;div class="feature-icon"&gt;⚡&lt;/div&gt;
-                &lt;h3&gt;高性能引擎&lt;/h3&gt;
-                &lt;p&gt;LRU 缓存 + 前缀和优化，性能拉满&lt;/p&gt;
-              &lt;/div&gt;
-            &lt;/div&gt;
-            &lt;div class="column"&gt;
-              &lt;div class="feature"&gt;
-                &lt;div class="feature-icon"&gt;🌳&lt;/div&gt;
-                &lt;h3&gt;虚拟 DOM&lt;/h3&gt;
-                &lt;p&gt;完整的 Virtual DOM 运行时实现&lt;/p&gt;
-              &lt;/div&gt;
-            &lt;/div&gt;
-          &lt;/div&gt;
-        &lt;/div&gt;
-      &lt;/div&gt;
-    &lt;/div&gt;
+    <div class="main-content">
+      <div class="card large-card">
+        <div class="card-header">
+          <h2 class="card-title">组件系统与样式隔离</h2>
+        </div>
+        <div class="card-content">
+          <div class="columns">
+            <div class="column">
+              <div class="feature">
+                <div class="feature-icon">🎨</div>
+                <h3>完整样式系统</h3>
+                <p>支持全局样式和 Scoped 样式隔离</p>
+              </div>
+            </div>
+            <div class="column">
+              <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <h3>高性能引擎</h3>
+                <p>LRU 缓存 + 前缀和优化，性能拉满</p>
+              </div>
+            </div>
+            <div class="column">
+              <div class="feature">
+                <div class="feature-icon">🌳</div>
+                <h3>虚拟 DOM</h3>
+                <p>完整的 Virtual DOM 运行时实现</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     
-    &lt;div class="footer"&gt;
-      &lt;p&gt;💖 Vue Renderer + 自研布局引擎 + Canvas 渲染 - 100% 原生实现&lt;/p&gt;
-    &lt;/div&gt;
-  &lt;/div&gt;
-&lt;/template&gt;
+    <div class="footer">
+      <p>💖 Vue Renderer + 自研布局引擎 + Canvas 渲染 - 100% 原生实现</p>
+    </div>
+  </div>
+</template>
 
-&lt;script&gt;
+<script>
 export default {
   name: 'App'
 }
-&lt;/script&gt;
+</script>
 
-&lt;style&gt;
+<style>
 .dashboard {
   display: flex;
   flex-direction: column;
@@ -326,4 +325,4 @@ export default {
   color: #cbd5e1;
   font-size: 15px;
 }
-&lt;/style&gt;
+</style>
